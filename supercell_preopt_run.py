@@ -91,9 +91,31 @@ if __name__ == '__main__':
                             # vsub
                             name = glob("*.out")[0].split(".out")[0]
                             ref_file = glob("*cif")[0]
-                            if "gpaw" in subdir:
+                            if "gpaw_szp" in subdir:
                                 print("GPAW found")
-                                process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",ref_file,"-n",name,"-p","--gpaw"],
+                                process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",ref_file,"-n",name,"-p","--szp"],
+                                    stdin=subprocess.DEVNULL,
+                                    stdout=open(name+'.out', 'w'),
+                                    stderr=subprocess.STDOUT,
+                                    start_new_session=True,
+                                    preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
+                                time.sleep(1)
+                                print("Job:",str(jobs)+"/"+str(max_jobs))
+                                jobs += 1
+                            elif "gpaw_dzp" in subdir:
+                                print("GPAW found")
+                                process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",ref_file,"-n",name,"-p","--dzp"],
+                                    stdin=subprocess.DEVNULL,
+                                    stdout=open(name+'.out', 'w'),
+                                    stderr=subprocess.STDOUT,
+                                    start_new_session=True,
+                                    preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
+                                time.sleep(1)
+                                print("Job:",str(jobs)+"/"+str(max_jobs))
+                                jobs += 1
+                            elif "fast" in subdir:
+                                print("Fast settings")
+                                process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",ref_file,"-n",name,"--fast"],
                                     stdin=subprocess.DEVNULL,
                                     stdout=open(name+'.out', 'w'),
                                     stderr=subprocess.STDOUT,

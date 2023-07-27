@@ -87,7 +87,6 @@ res_comp = {}
 results = []
 
 config_energy = {}
-timings = {}
 config_sp_energy = {}
 ml_energy = {}
 config_part_energy = {}
@@ -96,25 +95,33 @@ ref_energy = {}
 ###############################################################
 
 # get all configurations
-configs = [config for config in os.listdir(os.path.join(preopt_dir)) if os.path.isdir(os.path.join(preopt_dir,config))]
+configs = []
+with open("supercell_coulomb_energy_l.txt","r") as file:
+    for line in file:
+        configs.append(line.split(".cif")[0])
+
+calculations = [config for config in os.listdir(os.path.join(preopt_dir)) if os.path.isdir(os.path.join(preopt_dir,config))]
 structures = {}
 
+
 #specify the different calculation types
-e_types = ["fullAI","Q","SP","ML","partOpt"] # coulomb, sp, ML, partopt
+e_types = ["fullAI","Q","SP","ML","GPAW_SP","GPAW_OPT"] # coulomb, sp, ML, partopt
 e_min = [1] * len(e_types)
 
+timings = {}
 e_all = {}
 for config in configs:
     e_all[config] = [1] * len(e_types)
-
+    timings[config] = [-1] * len(e_types)
 
 # read in coulomb reference energies
 with open("supercell_coulomb_energy_l.txt","r") as file:
     for line in file:
+        key = line.split(".cif")[0]
         temp = line.split("\t")[1]
         index = e_types.index("Q")
-        e_all[config][index] = float(temp.split(" ")[0])
-        e_min[index] = min(e_all[config][index],e_min[index])
+        e_all[key][index] = float(temp.split(" ")[0])
+        e_min[index] = min(e_all[key][index],e_min[index])
 
 
 # get #atoms, composition, and Z from one of the structures (identical among all)
@@ -123,16 +130,16 @@ composition = Composition(structure.composition)
 Z = composition.get_reduced_composition_and_factor()[1]
 atoms = structure.num_sites
 
-for config in configs:
-    
-    os.chdir(config)
+for calculation in calculations:
+    config = calculation.split("_gpaw")[0]
+    os.chdir(calculation)
     if os.path.isfile("done") and os.path.isfile("OUTCAR"):
         
         # get full ab-initio results
         
         index = e_types.index("fullAI")
         final_energy,timing = energy("OUTCAR")
-        timings[config] = timing
+        timings[config][index] = timing
         
         e_all[config][index] = final_energy/Z
         e_min[index] = min(e_all[config][index],e_min[index])
@@ -141,113 +148,125 @@ for config in configs:
         
         index = e_types.index("SP")
         e_all[config][index] = energy("SCFCONV/OUTCAR")[0]/Z
+        timings[config][index] = energy("SCFCONV/OUTCAR")[1]
         e_min[index] = min(e_all[config][index],e_min[index])
         
         
         # energy after at max 10 optimization steps
-            
-        index = e_types.index("partOpt")
+        if "partOpt" in e_types:
+            index = e_types.index("partOpt")
         
-        i = 0
-        with open("OUTCAR", 'r') as file:
-            for line in file:
-                if "free  e" in line and i < 10:
-                    i+=1
-                    temp = line
-            
-        temp = temp.split("=")[1]
-        temp = temp.split("eV")[0]
-        e_all[config][index] = float(temp)/Z
-        e_min[index] = min(e_all[config][index],e_min[index])
+            i = 0
+            with open("OUTCAR", 'r') as file:
+                for line in file:
+                    if "free  e" in line and i < 10:
+                        i+=1
+                        temp = line
+                
+            temp = temp.split("=")[1]
+            temp = temp.split("eV")[0]
+            e_all[config][index] = float(temp)/Z
+            e_min[index] = min(e_all[config][index],e_min[index])
         
         # read in ML if it exists
         if os.path.isdir("ML"):
             index = e_types.index("ML")
             e_all[config][index] = energy("ML/OUTCAR")[0]/Z
-        else:
-            e_all[config][index] = 100
         e_min[index] = min(e_all[config][index],e_min[index])
     
+    elif os.path.isfile("SCFCONV/done") and os.path.isfile("SCFCONV/gpaw_sp.py"):
     # elif for GPAW results
     # read out results and timings in gpaw_e and gpaw_t
+        index = e_types.index("GPAW_SP")
         
-    else:
-        e_all[config] = 1000.0
-        if os.path.isfile("SCFCONV/done"):
-            if os.path.isfile("SCFCONV/vasprun.xml"):
-                xml = Vasprun("SCFCONV/vasprun.xml")
-            else:
-                print("Missing xml for",config)
-            # if xml.converged_electronic == False:
-            #     print("The SCF convergence failed!")                
-        else:
-            print(config,"Config not done!")
+        i = 0
+        with open("SCFCONV/GPAW.out", 'r') as file:
+            for line in file:
+                if "Extrapolated:" in line:
+                    e = float(line.split(":")[1])/Z
+                elif "Total:" in line:
+                    timing = float(line.split()[1])
+                    timings[config][index] = timing
+        
+        e_all[config][index] = e
+        e_min[index] = min(e_all[config][index],e_min[index])
+        
+        if os.path.isfile("done") and os.path.isfile("gpaw_opt.py"):
+        # elif for GPAW results
+        # read out results and timings in gpaw_e and gpaw_t
+            index = e_types.index("GPAW_OPT")
+            
+            i = 0
+            with open("GPAW.out", 'r') as file:
+                for line in file:
+                    if "Extrapolated:" in line:
+                        e = float(line.split(":")[1])/Z
+                    elif "Total:" in line:
+                        timing = float(line.split()[1])
+                        timings[config][index] = timing
+            
+            e_all[config][index] = e
+            e_min[index] = min(e_all[config][index],e_min[index])    
+    
+    # else:
+    #     e_all[config] = [1000.0] * len(e_types)
+    #     if os.path.isfile("SCFCONV/done"):
+    #         if os.path.isfile("SCFCONV/vasprun.xml"):
+    #             xml = Vasprun("SCFCONV/vasprun.xml")
+    #         else:
+    #             print("Missing xml for",config)
+    #         # if xml.converged_electronic == False:
+    #         #     print("The SCF convergence failed!")                
+    #     else:
+    #         print(config,"Config not done!")
     
     
     os.chdir(os.path.join(preopt_dir))
 
+
+
 # DO REGRESSION STUFF
 
 # regression for coulomb prediction vs. optimized
-x_cou = []
-x_uopt = []
-x_ml = []
-x_part = []
-y = []
-r_ml = 100
+# filter energies
+
+e_proper = {}
+for key,e in e_all.items():
+    if e[0] < 0:
+        e_proper[key] = e
 
 
-for key, values in e_all.items():
 
-    y.append(float(values[0])/y_min)
-    x_cou.append(float(values[1])/x_cou_min)
-    x_uopt.append(float(values[2])/x_uopt_min)
-    x_ml.append(float(values[3])/x_ml_min)
-    x_part.append(float(values[4])/x_part_min)
-    
 x_lin = np.linspace(0, 2, 100)
+ref = []
+index = e_types.index("fullAI")
+
+for key, values in e_proper.items():
+    ref.append(values[index]/e_min[index])
 
 fig, ax = plt.subplots()
 
 size = 25
-linewidth = 0.5
-    
-if x_cou[0] != x_cou[1]:
-    slope_cou, intercept_cou, r, p, std_err = stats.linregress(x_cou,y)
-if x_uopt[0] != x_uopt[1]:
-    slope_uopt, intercept_uopt, r_opt, p, std_err = stats.linregress(x_uopt,y)
-if x_ml[0] != x_ml[1]:
-    slope_ml, intercept_ml, r_ml, p, std_err = stats.linregress(x_ml,y)
-    y_ml_lin = slope_ml * x_lin + intercept_ml
-    plt.scatter(x_ml, y,label="ML-FF,r² = "+"{:6.3f}".format(r_ml**2),edgecolors="#000000",s=size,linewidth=linewidth)
-    plt.plot(x_lin, y_ml_lin)
-if x_part[0] != x_part[1]:
-    slope_part, intercept_part, r_part, p, std_err = stats.linregress(x_part,y)
+linewidth = 0.5    
+
+for i in range(len(e_types)):
+    x = []
+    y = []
+    for key, values in e_proper.items():
+        if values[i] < 0.5 and values[index]/e_min[index] > 0.97:
+            y.append(values[index]/e_min[index])
+            x.append(values[i]/e_min[i])#*(values[index]/e_min[index]))
+    if x != []:
+        slope, intercept, r, p, std_err = stats.linregress(x,y)
+        y_lin = slope * x_lin + intercept
+        plt.scatter(x,y,label=e_types[i]+", r² = "+"{:6.3f}".format(r**2),edgecolors="#000000",s=size,linewidth=linewidth)
+        plt.plot(x_lin, y_lin)
 
 
 
-# def myfunc(x):
-#     return slope * x + intercept
-
-# mymodel = list(map(myfunc, x))
-
-
-
-y_cou_lin = slope_cou * x_lin + intercept_cou
-y_uopt_lin = slope_uopt * x_lin + intercept_uopt
-y_part_lin = slope_part * x_lin + intercept_part
-
-plt.scatter(x_cou, y,label="Coulombic only,r² = "+"{:6.3f}".format(r**2),edgecolors="#000000",s=size,linewidth=linewidth)
-plt.scatter(x_uopt, y,label="Unoptimized energy,r² = "+"{:6.3f}".format(r_opt**2),edgecolors="#000000",s=size,linewidth=linewidth)
-plt.scatter(x_part, y,label="10 Optsteps,r² = "+"{:6.3f}".format(r_part**2),edgecolors="#000000",s=size,linewidth=linewidth)
-plt.plot(x_lin, y_cou_lin)
-plt.plot(x_lin, y_uopt_lin)
-
-plt.plot(x_lin, y_part_lin)
-plt.plot(x_lin, x_lin)
-
-plt.ylim(ymin=0.95, ymax=1.01)
-plt.xlim(xmin=0.95, xmax=1.01)
+ax.grid(zorder=0,linestyle="--",alpha=0.5)
+plt.ylim(ymin=0.975, ymax=1.005)
+plt.xlim(xmin=0.92, xmax=1.005)
 plt.legend()
 ax.set_xlabel('rel. Energy/Predictors')
 ax.set_ylabel('rel. Energy/PBEsol')

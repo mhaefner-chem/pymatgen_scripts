@@ -65,5 +65,14 @@ def incar_settings(arg):
         settings["NELMIN"] = 4
         settings["ENCUT"] = 520
         settings["ENAUG"] = 1040
+        
+    elif arg == "Fastopt":
+        settings["GGA"] = prefunc
+        settings["EDIFF"] = 0.0005
+        settings["EDIFFG"] = 0.05
+        settings["NELMIN"] = 4
+        settings.pop("ENCUT")
+        settings.pop("ENAUG")
+        settings["PREC"] = "Normal"
     
     return settings

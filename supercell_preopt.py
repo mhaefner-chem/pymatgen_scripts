@@ -117,8 +117,13 @@ if __name__ == '__main__':
         counter = 0
         for i in files:
             base_name = i.split(".")[0]
-            if mode == "gpaw":
-                base_name = base_name + "_gpaw"
+            if mode == "szp":
+                base_name = base_name + "_gpaw_szp"
+            elif mode == "dzp":
+                base_name = base_name + "_gpaw_dzp"
+            elif mode == "fast":
+                  base_name = base_name + "_fast"
+                   
             directory_tools.make_directory(base_name)
             shutil.copyfile(i,os.path.join(base_name,i))
             os.chdir(base_name)
@@ -127,13 +132,23 @@ if __name__ == '__main__':
                 print("Setting up input!")
                 counter += 1
                 print(counter)
-                process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",i,"-n",name_prefix+"_"+base_name,"-p","--ionly"],
-                             stdin=subprocess.DEVNULL,
-                             stdout=open(name_prefix+"_"+base_name+'.out', 'w'),
-                             stderr=subprocess.STDOUT,
-                             start_new_session=True,
-                             preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
-                process.wait()
+                if mode == "fast":
+                    process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",i,"-n",name_prefix+"_"+base_name,"--fast","--ionly"],
+                                 stdin=subprocess.DEVNULL,
+                                 stdout=open(name_prefix+"_"+base_name+'.out', 'w'),
+                                 stderr=subprocess.STDOUT,
+                                 start_new_session=True,
+                                 preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
+                    process.wait()
+                else:
+                    
+                    process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",i,"-n",name_prefix+"_"+base_name,"-p","--ionly"],
+                                 stdin=subprocess.DEVNULL,
+                                 stdout=open(name_prefix+"_"+base_name+'.out', 'w'),
+                                 stderr=subprocess.STDOUT,
+                                 start_new_session=True,
+                                 preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
+                    process.wait()
             else:
                 print("Already set up.")
             

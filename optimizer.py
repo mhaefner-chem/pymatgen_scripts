@@ -36,10 +36,15 @@ def input_maker(param = 0,max_steps = 99):
         vasp_input = MPRelaxSet(struc,user_potcar_functional="PBE_54")
         vasp_input.user_incar_settings = settings.incar_settings("PSopt")
         vasp_input.user_incar_settings["NSW"] = max_steps * 2
-    accuracy = 12.0
-    vasp_input.user_incar_settings["NGX"] = math.ceil(struc.lattice.abc[0] * accuracy)
-    vasp_input.user_incar_settings["NGY"] = math.ceil(struc.lattice.abc[1] * accuracy)
-    vasp_input.user_incar_settings["NGZ"] = math.ceil(struc.lattice.abc[2] * accuracy)
+    elif param == 2:
+        vasp_input = MPRelaxSet(struc,user_potcar_functional="PBE_54")
+        vasp_input.user_incar_settings = settings.incar_settings("Fastopt")
+        vasp_input.user_incar_settings["NSW"] = max_steps * 2
+    if param < 2:
+        accuracy = 12.0
+        vasp_input.user_incar_settings["NGX"] = math.ceil(struc.lattice.abc[0] * accuracy)
+        vasp_input.user_incar_settings["NGY"] = math.ceil(struc.lattice.abc[1] * accuracy)
+        vasp_input.user_incar_settings["NGZ"] = math.ceil(struc.lattice.abc[2] * accuracy)
         
     vasp_input.write_input(".")
     incar = Incar.from_file("INCAR")
@@ -95,6 +100,8 @@ def gsub(gpaw_mode,name):
         sys.exit()
     else:
         print("Calculation is set up.")
+        if os.path.exists("POSCAR"):
+            shutil.copyfile("POSCAR",name+".inp")
         shutil.copyfile(name+".inp","run")  
         shutil.copyfile(name+".inp","POSCAR") 
         print(subprocess.run(["/home/70/bt308570/bin/gsub "+gpaw_mode+".py"], shell=True, stdout=subprocess.PIPE)) 
@@ -175,14 +182,20 @@ if __name__ == '__main__':
             param = 2            
         elif sys.argv[i] == "--ionly":
             param = 3
-        elif sys.argv[i] == "--gpaw":
+        elif sys.argv[i] == "--szp":
             gpaw = True
+            basis = "szp"
+        elif sys.argv[i] == "--dzp":
+                gpaw = True
+                basis = "dzp"
         elif sys.argv[i] == "-n" or sys.argv[i] == "--name":
             name = sys.argv[i+1]
         elif sys.argv[i] == "-h" or sys.argv[i] == "--help":
             program_help()
         elif sys.argv[i] == "-p" or sys.argv[i] == "--preopt":
             preopt = 1
+        elif sys.argv[i] == "--fast":
+            preopt = 2
 
 if not "struc" in globals():
     print("No geometry data supplied with '-c'. Stopping script.")
@@ -245,7 +258,10 @@ else:
                 if "kpts={" in line:
                     fout.write(line.replace("(4,4,4)",new_kpts))
                 elif "basis=" in line:
-                    fout.write(line.replace("dzp","szp"))
+                    if basis == "szp":
+                        fout.write(line.replace("dzp","szp"))
+                    else:
+                        fout.write(line) 
                 # if "txt='GPAW.out'" in line:
                 #     fout.write(line.replace("GPAW",name))
                 else:
@@ -255,34 +271,56 @@ else:
     print("Running preliminary SCF convergence test with GPAW.")
     gpaw_mode = "gpaw_sp"
     gsub(gpaw_mode,name)
-    sys.exit()
 
 
 # kills job if the convergence failed
-if result.converged_electronic == False:
-    print("The initial SCF convergence failed! Please check the validity of the input files and provide an alternative INCAR if necessary.")
-    sys.exit()
-    
+if gpaw == False:
+    if result.converged_electronic == False:
+        print("The initial SCF convergence failed! Please check the validity of the input files and provide an alternative INCAR if necessary.")
+        sys.exit()
+        
 # runs vsub_py for optimization  
 os.chdir(workdir)
-input_maker(preopt,int(max_steps))
+if gpaw == False:
+    input_maker(preopt,int(max_steps))
 
 a = 0
-while True:
-    energy = vsub(name,workdir)
-    result = Vasprun("vasprun.xml")
-    a = a + 1
-    # repeats optimization if not yet converged
-    if result.converged_ionic == False:
-        print("Optimization not converged on step",a,". Updating POSCAR to do another optimization.")
-        os.remove("done")
-        shutil.copyfile("POSCAR","POSCAR_"+str(a))
-        shutil.copyfile("CONTCAR","POSCAR")
-    elif result.converged_ionic == True:
-        break
-    elif result.converged_ionic == False and a > 10:
-        print("Optimization failed even after 10 restarts. Please check system manually.")
-        sys.exit()
+if gpaw == False:
+    while True:
+        energy = vsub(name,workdir)
+        result = Vasprun("vasprun.xml")
+        a = a + 1
+        # repeats optimization if not yet converged
+        if result.converged_ionic == False:
+            print("Optimization not converged on step",a,". Updating POSCAR to do another optimization.")
+            os.remove("done")
+            shutil.copyfile("POSCAR","POSCAR_"+str(a))
+            shutil.copyfile("CONTCAR","POSCAR")
+        elif result.converged_ionic == True:
+            break
+        elif result.converged_ionic == False and a > 10:
+            print("Optimization failed even after 10 restarts. Please check system manually.")
+            sys.exit()
+else:
+    with open(find_topdir()+"/bin/gpaw_opt.py","rt") as fin:
+        with open("gpaw_opt.py", "wt") as fout:
+            for line in fin:
+                if "kpts={" in line:
+                    fout.write(line.replace("(4,4,4)",new_kpts))
+                elif "basis=" in line:
+                    if basis == "szp":
+                        fout.write(line.replace("dzp","szp"))
+                    else:
+                        fout.write(line) 
+                else:
+                    fout.write(line)
+    
+    print("Running atomic optimization with GPAW.")
+    gpaw_mode = "gpaw_opt"
+    gsub(gpaw_mode,name)
+    sys.exit()
+        
+
 
 # converges k-points if requested
 if param == 2:
