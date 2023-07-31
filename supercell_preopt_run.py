@@ -52,7 +52,7 @@ if __name__ == '__main__':
     
     preopt_dir = workdir+"/SUPERCELL/PREOPT"
     outer_loop = 0
-    while outer_loop < 200:
+    while outer_loop < 600:
         outer_loop += 1
         print(outer_loop)
         os.chdir(preopt_dir)

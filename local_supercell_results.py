@@ -79,20 +79,6 @@ os.chdir(preopt_dir)
 
 
 ###############################################################
-# try to remove
-
-res_energy = {}
-res_struc = {}
-res_comp = {}
-results = []
-
-config_energy = {}
-config_sp_energy = {}
-ml_energy = {}
-config_part_energy = {}
-ref_energy = {}
-
-###############################################################
 
 # get all configurations
 configs = []
@@ -105,14 +91,16 @@ structures = {}
 
 
 #specify the different calculation types
-e_types = ["fullAI","Q","SP","ML","GPAW_SP","GPAW_OPT"] # coulomb, sp, ML, partopt
+e_types = ["Q","fullAI","SP","fastAI","fastSP","SZP_SP","SZP_OPT","DZP_SP","DZP_OPT"] # coulomb, sp, ML, partopt
 e_min = [1] * len(e_types)
 
 timings = {}
 e_all = {}
+run_success = {}
 for config in configs:
     e_all[config] = [1] * len(e_types)
     timings[config] = [-1] * len(e_types)
+    run_success[config] = [-1] * len(e_types)
 
 # read in coulomb reference energies
 with open("supercell_coulomb_energy_l.txt","r") as file:
@@ -132,13 +120,18 @@ atoms = structure.num_sites
 
 for calculation in calculations:
     config = calculation.split("_gpaw")[0]
+    config = config.split("_fast")[0]
     os.chdir(calculation)
     if os.path.isfile("done") and os.path.isfile("OUTCAR"):
         
         # get full ab-initio results
+        if "fast" in calculation:
+            index = e_types.index("fastAI")
+        else:
+            index = e_types.index("fullAI")
         
-        index = e_types.index("fullAI")
         final_energy,timing = energy("OUTCAR")
+        run_success[config][index] = 0
         timings[config][index] = timing
         
         e_all[config][index] = final_energy/Z
@@ -146,8 +139,12 @@ for calculation in calculations:
         
         # energy after single-point calculation
         
-        index = e_types.index("SP")
+        if "fast" in calculation:
+            index = e_types.index("fastSP")
+        else:
+            index = e_types.index("SP")
         e_all[config][index] = energy("SCFCONV/OUTCAR")[0]/Z
+        run_success[config][index] = 0
         timings[config][index] = energy("SCFCONV/OUTCAR")[1]
         e_min[index] = min(e_all[config][index],e_min[index])
         
@@ -166,6 +163,7 @@ for calculation in calculations:
             temp = temp.split("=")[1]
             temp = temp.split("eV")[0]
             e_all[config][index] = float(temp)/Z
+            run_success[config][index] = 0
             e_min[index] = min(e_all[config][index],e_min[index])
         
         # read in ML if it exists
@@ -173,11 +171,26 @@ for calculation in calculations:
             index = e_types.index("ML")
             e_all[config][index] = energy("ML/OUTCAR")[0]/Z
         e_min[index] = min(e_all[config][index],e_min[index])
-    
+        
+    elif os.path.isfile("SCFCONV/OUTCAR"):
+        if "fast" in calculation:
+            index = e_types.index("fastAI")
+        else:
+            index = e_types.index("fullAI")
+        run_success[config][index] = 1
+        if "fast" in calculation:
+            index = e_types.index("fastSP")
+        else:
+            index = e_types.index("SP")
+        run_success[config][index] = 1
+        
     elif os.path.isfile("SCFCONV/done") and os.path.isfile("SCFCONV/gpaw_sp.py"):
     # elif for GPAW results
     # read out results and timings in gpaw_e and gpaw_t
-        index = e_types.index("GPAW_SP")
+        if "dzp" in calculation:
+            index = e_types.index("DZP_SP")
+        elif "szp" in calculation:
+            index = e_types.index("SZP_SP")
         
         i = 0
         with open("SCFCONV/GPAW.out", 'r') as file:
@@ -187,6 +200,7 @@ for calculation in calculations:
                 elif "Total:" in line:
                     timing = float(line.split()[1])
                     timings[config][index] = timing
+                    run_success[config][index] = 0
         
         e_all[config][index] = e
         e_min[index] = min(e_all[config][index],e_min[index])
@@ -194,7 +208,10 @@ for calculation in calculations:
         if os.path.isfile("done") and os.path.isfile("gpaw_opt.py"):
         # elif for GPAW results
         # read out results and timings in gpaw_e and gpaw_t
-            index = e_types.index("GPAW_OPT")
+            if "dzp" in calculation:
+                index = e_types.index("DZP_OPT")
+            elif "szp" in calculation:
+                index = e_types.index("SZP_OPT")
             
             i = 0
             with open("GPAW.out", 'r') as file:
@@ -202,11 +219,27 @@ for calculation in calculations:
                     if "Extrapolated:" in line:
                         e = float(line.split(":")[1])/Z
                     elif "Total:" in line:
+                        run_success[config][index] = 0
                         timing = float(line.split()[1])
                         timings[config][index] = timing
+                    if "TIME LIMIT" in line or "LineSearch failed" in line:
+                        run_success[config][index] = 1
             
             e_all[config][index] = e
             e_min[index] = min(e_all[config][index],e_min[index])    
+        elif os.path.isfile("gpaw_opt.py"):
+            if "dzp" in calculation:
+                index = e_types.index("DZP_OPT")
+            elif "szp" in calculation:
+                index = e_types.index("SZP_OPT")
+            
+            temp = glob.glob("*sum")
+            for i in temp:
+                with open(i, 'r') as file:
+                    for line in file:
+                        if "TIME LIMIT" in line or "LineSearch failed" in line:
+                            run_success[config][index] = 1
+
     
     # else:
     #     e_all[config] = [1000.0] * len(e_types)
@@ -248,6 +281,7 @@ fig, ax = plt.subplots()
 
 size = 25
 linewidth = 0.5    
+r2_all = [-1] * len(e_types)
 
 for i in range(len(e_types)):
     x = []
@@ -258,6 +292,7 @@ for i in range(len(e_types)):
             x.append(values[i]/e_min[i])#*(values[index]/e_min[index]))
     if x != []:
         slope, intercept, r, p, std_err = stats.linregress(x,y)
+        r2_all[i] = r**2
         y_lin = slope * x_lin + intercept
         plt.scatter(x,y,label=e_types[i]+", r² = "+"{:6.3f}".format(r**2),edgecolors="#000000",s=size,linewidth=linewidth)
         plt.plot(x_lin, y_lin)
@@ -271,10 +306,63 @@ plt.legend()
 ax.set_xlabel('rel. Energy/Predictors')
 ax.set_ylabel('rel. Energy/PBEsol')
  
-plt.show() 
+# plt.show() 
 
 
 # results
+
+# timing parameters
+
+max_timing = [0] * len(e_types)
+min_timing = [0] * len(e_types)
+avg_timing = [0] * len(e_types)
+
+
+for i in range(len(e_types)):
+    counter = 0
+    sum = 0
+    for config in timings:
+        if timings[config][i] > 0:
+            counter += 1
+            sum += timings[config][i]
+        if counter > 0:
+            avg_timing[i] = sum/counter
+        else:
+            avg_timing[i] = -1
+        
+print("{:^10}".format("Method"),"{:^6}".format("r²"),"{:^8}".format("a.m. t/s"),"{:^8}".format("speed-up"),"{:^6}".format("r² > Q?"))
+
+index_ref = e_types.index("fullAI")
+index_Q = e_types.index("Q")
+for i in range(len(e_types)):
+    if r2_all[i] > 0:
+        if avg_timing[i] > 0:
+            ratio = avg_timing[index_ref]/avg_timing[i]
+        else:
+            ratio = -1
+        if r2_all[i] < r2_all[index_Q]:
+            better = "{:6}".format("no")
+        else:
+            better = "{:6.3f}".format(r2_all[i])
+        print("{:10}".format(e_types[i]),"{:6.3f}".format(r2_all[i]),"{:8.0f}".format(avg_timing[i]),"{:8.1f}".format(ratio),better)
+
+print("################################")
+
+for i in range(1,len(e_types)):
+    counter = [0] * 2
+    for config in e_all:
+        if run_success[config][i] == -1:
+            counter[0] += 1
+            print("check",config,e_types[i])
+        elif run_success[config][i] == 1:
+            counter[1] += 1
+    print("{:10}".format(e_types[i]),":",str(counter[0])+"/"+str(len(e_all)),
+          "missing,",str(counter[1])+"/"+str(len(e_all)),"failed")
+
+print("################################")
+
+sys.exit()
+
 print("r² cou=","{:6.3f}".format(r**2),"Data points:",len(configs))
 print("r² uopt=","{:6.3f}".format(r_opt**2),"Data points:",len(configs))
 if r_ml < 50:
