@@ -9,9 +9,9 @@ Created on Mon May  8 14:42:03 2023
 #!/usr/bin/env python3
 def incar_settings(arg):
 # various INCAR settings conveniently compiled in one place
-    prefunc = "PS"
-    func = "R2SCAN"
-    disp = "D4"
+    prefunc = "PE"
+    func = "PE"
+    disp = "D3BJ"
     
     settings = {}
     
@@ -60,11 +60,9 @@ def incar_settings(arg):
         
     elif arg == "PSopt":
         settings["GGA"] = prefunc
-        settings["EDIFF"] = 0.0001
-        settings["EDIFFG"] = 0.01
+        settings["EDIFF"] = 1e-7
+        settings["EDIFFG"] = -0.003
         settings["NELMIN"] = 4
-        settings["ENCUT"] = 520
-        settings["ENAUG"] = 1040
         
     elif arg == "Fastopt":
         settings["GGA"] = prefunc

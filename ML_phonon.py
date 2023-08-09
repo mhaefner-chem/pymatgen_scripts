@@ -112,6 +112,19 @@ if __name__ == '__main__':
     os.chdir(ML_dir)
     name = directory_tools.directory_name_constructor(structure)
     workdir = os.path.join(ML_dir,name)
+    
+    # alternative settings
+    # alternate EDIFF
+    alt_settings = "_1E-5"
+    incar["EDIFF"] = 1e-5
+    
+    # alt_settings = "_FS_1.5"
+    # incar["ML_WTIFOR"] = 1.5
+    
+    # alt_settings = ""
+    
+    workdir = workdir + alt_settings
+    
     directory_tools.make_directory(workdir)
     os.chdir(workdir)
     
@@ -359,67 +372,3 @@ if __name__ == '__main__':
     # do vibrational computations once refit was carried out
 
     sys.exit()
-
-
-    # get information on the amount of single point calculations
-    os.chdir(phon_dir+"/"+struc)
-    structure = Structure.from_file("CONTCAR")
-    pattern = 'POSCAR-*'
-    files = glob.glob(pattern)
-    numbers = [int(os.path.splitext(os.path.basename(file))[0].split('-')[-1]) for file in files]
-    n_files = "{:03}".format(max(numbers))
-
-    run_phonopy = True
-    for i in range(1,max(numbers)+1):
-        # check if all calculations are done
-        if not os.path.isfile("disp-"+str("{:03}".format(i))+"/done"):
-          run_phonopy = False  
-          
-    # check if the forces were already calculated, run phonopy if not
-    if run_phonopy == True and os.path.isfile("FORCE_SETS") == False:
-        print("Calculating forces for: "+struc)
-        print(subprocess.run(["phonopy -f disp-{001.."+str(n_files)+"}/vasprun.xml"], shell=True, stdout=subprocess.PIPE))
-        
-    # check if the thermodynamic data was already calculated, run phonopy if not
-    #if os.path.isfile("thermal_properties.yaml") == False and
-    if os.path.isfile("mesh.conf") == True and os.path.isfile("FORCE_SETS") == True:
-        print(subprocess.run(["phonopy mesh.conf -t"], shell=True, stdout=subprocess.PIPE))
-    
-    # if thermodynamic data is available, extract all necessary information
-    if os.path.isfile("thermal_properties.yaml") == True:
-        temperature = []
-        free_energy = []
-        t_prop = False
-        
-        # extracting information
-        with open('thermal_properties.yaml','r') as file:
-            for line in file:
-                if 'thermal_properties:' in line:
-                    t_prop = True
-                if '- temperature' in line and t_prop == True:
-                    temperature.append(line.split()[2])
-                if 'free_energy' in line and t_prop == True:
-                    free_energy.append(line.split()[1])
-        
-        # setup everything to process and write results
-        composition = Composition(structure.composition)
-        Z = composition.get_reduced_composition_and_factor()[1]
-        
-        spec = importlib.util.spec_from_file_location("directory_tools",workdir + "/bin/directory_tools.py")
-        directory_tools = importlib.util.module_from_spec(spec)
-        sys.modules["name"] = directory_tools
-        spec.loader.exec_module(directory_tools)
-        
-        res_dir = (workdir+"/RESULTS/"+struc)
-        directory_tools.make_directory(res_dir)      
-        
-        # writing information
-        with open(res_dir+'/thermo.txt', 'w') as file:
-            file.write("      T        G   G/unit\n")
-            file.write("      K       eV  eV/unit\n")
-            for i in range(0,len(temperature)):
-                t = "{:7.2f}".format(float(temperature[i]))
-                g = "{:10.4f}".format(float(free_energy[i])/96.49)
-                g_atom = "{:10.4f}".format(float(free_energy[i])/96.49/Z)
-                file.write(t+' '+g+" "+g_atom+"\n")
-print("\n")

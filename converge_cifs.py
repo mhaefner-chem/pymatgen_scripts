@@ -141,8 +141,10 @@ for structure in structures:
     os.chdir(struc_dir)
     
     # if there is no optimization running, start a new one
-    if os.path.isfile('CONVOPT/run'):
+    if os.path.isfile('CONVOPT/run') or os.path.isfile('run'):
         print("Optimization " + name[structure] + " is already in the works!")
+            
+            
     elif os.path.isfile('CONVOPT/done'):
         print("Optimization " + name[structure] + " is done!")
         directory_tools.make_directory(opt_dir)
@@ -169,6 +171,10 @@ for structure in structures:
             file.write("Energy      "+e+"\n")
             file.write("Energy/unit "+e_Z+"\n")
             file.write("Energy/atom "+e_atom+"\n")
+        with open(res_dir+'/charges.txt', 'w') as file:
+            file.write(site.specie.symbol, site.specie.oxi_state+"\n")
+            
+
         
     else:
         print("Setting up optimization of "+name[structure]+".")

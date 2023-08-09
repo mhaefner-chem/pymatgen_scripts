@@ -34,7 +34,14 @@ spec.loader.exec_module(directory_tools)
 
  # move through the results
 res_dir = workdir+"/RESULTS"
-results = [f for f in os.listdir(res_dir) if os.path.isdir(os.path.join(res_dir, f))]
+results_preliminary = [f for f in os.listdir(res_dir) if os.path.isdir(os.path.join(res_dir, f))]
+
+results = []
+for result in results_preliminary:
+    if "ML" in result:
+        continue
+    else:
+        results.append(result)
 os.chdir(res_dir)
 
 
@@ -202,6 +209,10 @@ for result in results:
     tot = 0
     for fraction in frac_tot:
         tot += frac_tot[fraction]
+        
+    if tot == 0:
+        print(result)
+        tot = -1
             
     for fraction in frac_tot:
         with open(delta_file, 'a') as file:

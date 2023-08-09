@@ -29,7 +29,7 @@ def find_topdir():
 # creates the VASP inputs (INCAR, POTCAR, POSCAR)
 def input_maker(param = 0,max_steps = 99):
     if param == 0:
-        vasp_input = MPScanRelaxSet(struc)
+        vasp_input = MPRelaxSet(struc)
         vasp_input.user_incar_settings = settings.incar_settings("SCANopt")
         vasp_input.user_incar_settings["NSW"] = max_steps
     elif param == 1:
@@ -40,7 +40,7 @@ def input_maker(param = 0,max_steps = 99):
         vasp_input = MPRelaxSet(struc,user_potcar_functional="PBE_54")
         vasp_input.user_incar_settings = settings.incar_settings("Fastopt")
         vasp_input.user_incar_settings["NSW"] = max_steps * 2
-    if param < 2:
+    if param < 1:
         accuracy = 12.0
         vasp_input.user_incar_settings["NGX"] = math.ceil(struc.lattice.abc[0] * accuracy)
         vasp_input.user_incar_settings["NGY"] = math.ceil(struc.lattice.abc[1] * accuracy)
@@ -186,8 +186,8 @@ if __name__ == '__main__':
             gpaw = True
             basis = "szp"
         elif sys.argv[i] == "--dzp":
-                gpaw = True
-                basis = "dzp"
+            gpaw = True
+            basis = "dzp"
         elif sys.argv[i] == "-n" or sys.argv[i] == "--name":
             name = sys.argv[i+1]
         elif sys.argv[i] == "-h" or sys.argv[i] == "--help":
@@ -219,6 +219,8 @@ else:
 
 # program stops if only the input was requested, but no actual calculation
 if param == 3:
+    for site in struc.sites:
+         print(site.species)
     sys.exit()
 
 # get working directory
@@ -251,6 +253,8 @@ else:
                 new_kpts += ")"
             else:
                 new_kpts += ","
+                
+    
         
     with open(find_topdir()+"/bin/gpaw_sp.py","rt") as fin:
         with open("gpaw_sp.py", "wt") as fout:

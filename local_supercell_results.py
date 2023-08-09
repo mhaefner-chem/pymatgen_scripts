@@ -10,11 +10,9 @@ Created on Tue Jun  6 12:21:39 2023
 
 import sys,os,importlib,glob,warnings
 from pymatgen.core import Structure,Composition
-from pymatgen.io.vasp.outputs import Vasprun
 from scipy import stats
 import matplotlib.pyplot as plt
 import numpy as np
-import statistics
 
 
 def energy(outcar):
@@ -91,7 +89,7 @@ structures = {}
 
 
 #specify the different calculation types
-e_types = ["Q","fullAI","SP","fastAI","fastSP","SZP_SP","SZP_OPT","DZP_SP","DZP_OPT"] # coulomb, sp, ML, partopt
+e_types = ["Q","fullAI","SP","fastAI","fastSP","SZP_SP","SZP_OPT","DZP_SP","DZP_OPT","ML"] # coulomb, sp, ML, partopt
 e_min = [1] * len(e_types)
 
 timings = {}
@@ -167,7 +165,7 @@ for calculation in calculations:
             e_min[index] = min(e_all[config][index],e_min[index])
         
         # read in ML if it exists
-        if os.path.isdir("ML"):
+        if os.path.isdir("ML") and "ML" in e_types:
             index = e_types.index("ML")
             e_all[config][index] = energy("ML/OUTCAR")[0]/Z
         e_min[index] = min(e_all[config][index],e_min[index])
@@ -292,6 +290,7 @@ for i in range(len(e_types)):
             x.append(values[i]/e_min[i])#*(values[index]/e_min[index]))
     if x != []:
         slope, intercept, r, p, std_err = stats.linregress(x,y)
+        print(e_types[i],slope,intercept,e_min[i],e_min[index])
         r2_all[i] = r**2
         y_lin = slope * x_lin + intercept
         plt.scatter(x,y,label=e_types[i]+", r² = "+"{:6.3f}".format(r**2),edgecolors="#000000",s=size,linewidth=linewidth)
@@ -348,6 +347,7 @@ for i in range(len(e_types)):
 
 print("################################")
 
+successful = [0] * len(e_types)
 for i in range(1,len(e_types)):
     counter = [0] * 2
     for config in e_all:
@@ -356,10 +356,31 @@ for i in range(1,len(e_types)):
             print("check",config,e_types[i])
         elif run_success[config][i] == 1:
             counter[1] += 1
+        successful[i] = len(e_all)-counter[0]-counter[1]
     print("{:10}".format(e_types[i]),":",str(counter[0])+"/"+str(len(e_all)),
           "missing,",str(counter[1])+"/"+str(len(e_all)),"failed")
 
 print("################################")
+
+
+
+with open("results.dat", 'w') as file:
+    for i in range(len(e_types)):
+        file.write("{:10}".format(e_types[i]))
+    file.write("\n")
+    for config in configs:
+        for i in range(len(e_types)):
+            file.write("{:10.3f}".format(e_all[config][i]))
+        file.write("\n")
+    file.write("timing_average")
+    for i in range(len(e_types)):
+        file.write("{:9.1f}".format(avg_timing[i]))
+    file.write("\n")
+    file.write("successful_calculations")
+    for i in range(len(e_types)):
+        file.write("{:5.0f}".format(successful[i]))
+    file.write("\n")
+        
 
 sys.exit()
 
