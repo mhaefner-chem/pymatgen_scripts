@@ -115,14 +115,14 @@ if __name__ == '__main__':
     
     # alternative settings
     # alternate EDIFF
-    alt_settings = "_1E-5"
-    incar["EDIFF"] = 1e-5
+    # alt_settings = "_1E-5"
+    # incar["EDIFF"] = 1e-5
     
     # alt_settings = "_FS_1.5"
     # incar["ML_WTIFOR"] = 1.5
     
-    # alt_settings = ""
-    
+    alt_settings = ""
+   
     workdir = workdir + alt_settings
     
     directory_tools.make_directory(workdir)
@@ -307,9 +307,11 @@ if __name__ == '__main__':
                     
                     os.chdir(disp_dir)
 
-                    incar.write_file("run")
+
+                    shutil.copyfile(poscar_name,"POSCAR")
                     # run VASP calculation
-                    print(subprocess.run(["/home/70/bt308570/bin/vsub_py "+poscar_name], shell=True, stdout=subprocess.PIPE))
+                    print(subprocess.run(["/home/70/bt308570/vasp.6.4.1_neb/bin/vasp_std"], shell=True, stdout=subprocess.PIPE))
+                    incar.write_file("done")
                     os.chdir("..")
                     
             run_phonopy = True
@@ -347,7 +349,7 @@ if __name__ == '__main__':
                 composition = Composition(structure.composition)
                 Z = composition.get_reduced_composition_and_factor()[1]
                 
-                res_dir = (topdir+"/RESULTS/"+name+"_ML_"+str(i))
+                res_dir = (topdir+"/RESULTS/"+name+"_ML_"+str(i)+alt_settings)
                 directory_tools.make_directory(res_dir)      
                 
                 # writing information

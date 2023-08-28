@@ -22,8 +22,8 @@ def incar_settings(arg):
     settings["ISMEAR"] = 0
     settings["POTIM"] = 0.2
     
-    settings["ENCUT"] = 680
-    settings["ENAUG"] = 1360
+    settings["ENCUT"] = 650
+    settings["ENAUG"] = 1300
     
     
     if func == "R2SCAN" or func == "SCAN":

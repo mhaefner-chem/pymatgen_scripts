@@ -275,6 +275,7 @@ else:
     print("Running preliminary SCF convergence test with GPAW.")
     gpaw_mode = "gpaw_sp"
     gsub(gpaw_mode,name)
+    sys.exit()
 
 
 # kills job if the convergence failed

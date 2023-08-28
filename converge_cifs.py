@@ -171,8 +171,8 @@ for structure in structures:
             file.write("Energy      "+e+"\n")
             file.write("Energy/unit "+e_Z+"\n")
             file.write("Energy/atom "+e_atom+"\n")
-        with open(res_dir+'/charges.txt', 'w') as file:
-            file.write(site.specie.symbol, site.specie.oxi_state+"\n")
+        # with open(res_dir+'/charges.txt', 'w') as file:
+        #     file.write(site.specie.symbol,"{:4.1f}".format(site.specie.oxi_state)+"\n")
             
 
         

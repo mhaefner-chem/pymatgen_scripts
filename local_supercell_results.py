@@ -371,6 +371,7 @@ with open("results.dat", 'w') as file:
     for config in configs:
         for i in range(len(e_types)):
             file.write("{:10.3f}".format(e_all[config][i]))
+        file.write("{:^10}".format(config.split("_")[1]))
         file.write("\n")
     file.write("timing_average")
     for i in range(len(e_types)):

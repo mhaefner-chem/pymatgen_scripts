@@ -13,6 +13,7 @@ Created on Wed May 17 14:57:48 2023
 from pymatgen.core import Structure,Species
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer,SpacegroupOperations
 from pymatgen.analysis.ewald import EwaldSummation
+from pymatgen.io.vasp import Poscar
 import matplotlib.pyplot as plt
 import numpy as np
 import sys,time
@@ -34,9 +35,176 @@ for i in range(0,n):
         struc = Structure.from_file(sys.argv[i+1])
     elif sys.argv[i] == "-s":
         print("Substituted element: "+sys.argv[i+1])
-        sub_name = sys.argv[i+1]
-        sub_species = Species.from_string(sub_name)
+        switch = int(sys.argv[i+1])
 
+
+
+resolution = 0.25 # in AA
+cutoff = 3 # eV
+limit_low_cutoff = 0.85
+
+
+res = [1,1,1]
+real_res = [resolution,resolution,resolution]
+steps = 1
+for i in range(0,3):
+    res[i] = int(np.ceil(struc.lattice.abc[i]/resolution))
+    real_res[i] = struc.lattice.abc[i]/res[i]
+    steps = res[i]*steps
+
+print("Real resolution: ",real_res)
+
+for site in struc.sites:
+    if "Na" in site.species:
+        site.species = "Na1+"
+    elif "Zn" in site.species:
+        site.species = "Zn2+"
+    elif "Al" in site.species:
+        site.species = "Al3++"
+    elif "Cl" in site.species:
+        site.species = "Cl1-"
+    else:
+        site.species = "H0"
+
+combined_radii = {}
+sub_ion = struc.sites[switch-1]
+for site in struc.sites:
+    combined_radii[site.specie.symbol] = site.specie.ionic_radius+sub_ion.specie.ionic_radius
+
+
+time_large_loop = {}
+
+
+e_tot = np.zeros((res))
+for x in range(0,res[0]):
+    time_large_loop[x] = time.thread_time()
+    if x > 0:
+        time_per_step = time_large_loop[x] - time_large_loop[x-1]
+        print("Time for step/sec:  ","{:8.3f}".format(time_per_step))
+        print("Remaining time/sec: ","{:8.3f}".format(time_per_step*(res[0]-x)))
+    for y in range(0,res[1]):
+        for z in range(0,res[2]):
+            new_coords = [line(x,res[0]),line(y,res[1]),line(z,res[2])]
+            struc.replace(switch-1,species="Na1+",coords=new_coords)
+            neighbors = struc.get_neighbors(struc.sites[switch-1],r=3.5)
+            for neighbor in neighbors:
+                if neighbor.nn_distance < limit_low_cutoff*combined_radii[neighbor.specie.symbol]:
+                    substitute = False
+                    break
+                else:
+                    substitute = True
+            if substitute == True:
+
+                ES = EwaldSummation(struc)
+                e_tot[x,y,z] = ES.total_energy
+          
+print("Total time/sec:     ","{:8.3f}".format(time_large_loop[res[0]-1]-time_large_loop[0]))
+
+min_index = np.unravel_index(np.argmin(e_tot), e_tot.shape)
+min_val = e_tot[min_index]
+
+
+indices = np.where(e_tot <= min_val+cutoff)
+
+
+stable_options = []
+
+
+indices_3d = np.transpose(indices)
+
+for i in indices_3d:
+    k = [0,0,0]
+    for j in range(0,3):
+        k[j] = i[j]/res[j]    
+    if e_tot[i[0],i[1],i[2]] < -1:
+        stable_options.append([k,e_tot[i[0],i[1],i[2]]])
+        struc.append("H0",k)
+struc.remove_sites([switch-1])
+poscar = Poscar(struc)
+poscar.write_file("POSITIONS.vasp")
+    
+          
+sys.exit()
+
+            # coords = struc.lattice.get_cartesian_coords(fractional_coords=[line(x,res[0]),line(y,res[1]),line(z,res[2])])
+                        
+
+            
+            # if len(struc.get_neighbors_in_shell(coords,r=0.0,dr=limit_low)) > 0:
+            #     attrac_all[x,y,z] = 10000.0
+            #     continue
+            # else:
+            #     neighbors = struc.get_neighbors_in_shell(coords,r=limit_low,dr=limit_high)
+            #     for neighbor in neighbors:
+            #         # print(neighbor.nn_distance,neighbor.specie.symbol,neighbor.specie.oxi_state)
+            #         if neighbor.nn_distance < limit_low_cutoff*combined_radii[neighbor.specie.symbol]:
+            #             local_attraction = local_attraction + 10000.0
+            #         else:
+            #             E_C = 1.43965E1*neighbor.specie.oxi_state*sub_species.oxi_state/neighbor.nn_distance
+            #             local_attraction = local_attraction + E_C
+                
+
+                
+            #     # local_attraction = len(struc.get_neighbors_in_shell(coords,r=limit_low,dr=limit_high))
+            
+            # attrac_all[x,y,z] = local_attraction
+            
+
+
+
+    
+k_cart = [0.0,0.0,0.0]
+l_cart = [0.0,0.0,0.0]
+    
+for i in range(0,len(stable_options)):
+    for j in range(i+1,len(stable_options)):
+        for k in stable_options[i][0]:
+            for n in range(3):
+                k_cart[n] = k[n]*struc.lattice.abc[n]
+                
+            for l in stable_options[j][0]:
+                for n in range(3):
+                    l_cart[n] = l[n]*struc.lattice.abc[n]
+                    
+                if distance(k_cart,l_cart) < sub_species.ionic_radius:
+                    if stable_options[i][1] < stable_options[j][1]:
+                        stable_options[j][1] = 20000.0
+                    else:
+                        stable_options[i][1] = 20000.0
+                
+                # print(k,l,distance(k_cart,l_cart))
+
+print("")
+print("Obtained vacant positions:")
+pos = [1.0,1.0,1.0]
+for i in range(0,len(stable_options)):
+    if stable_options[i][1] < stab_limit:
+        print("Position (frac):",end=' ')
+        
+        
+        mini = 1.0
+        index = -1
+        
+        for j in range(len(stable_options[i][0])):
+            if stable_options[i][0][j][0] < mini:
+                mini = stable_options[i][0][j][0]
+                index = j
+            
+        for j in range(3):
+            pos[j] = "{:5.3f}".format(stable_options[i][0][index][j])
+            
+            
+        print(pos[0]+", "+pos[1]+", "+pos[2],end=',')
+        testpos.append([stable_options[i][0][index],stable_options[i][1]])
+        print(" local stability/eV:","{:8.3f}".format(stable_options[i][1])," , multiplicity: ",mult)
+        for j in range(len(stable_options[i][0])):
+            print("(",end="")
+            for k in range(3):
+                print("{:5.3f}".format(stable_options[i][0][j][k]),end=" ")
+            print(")",end=" ")
+            print("")
+
+sys.exit()
 
 combined_radii = {}
 
@@ -48,26 +216,14 @@ for site in struc.sites:
     combined_radii[site.specie.symbol] =                    site.specie.ionic_radius+sub_species.ionic_radius
 
 
-resolution = 0.5 # in AA
-limit_low_cutoff = 0.85
-cutoffs = [1.1,1.5,2.0,3.0]
-stab_limit = 0.0
-testpos=[]
+
 
 
 # neighborcount = np.zeros((resolution,resolution,resolution))
 # neighborline = np.zeros((resolution,resolution))
 # neighborplane = np.zeros((resolution))
 
-res = [1,1,1]
-real_res = [resolution,resolution,resolution]
-steps = 1
-for i in range(0,3):
-    res[i] = int(np.ceil(struc.lattice.abc[i]/resolution))
-    real_res[i] = struc.lattice.abc[i]/res[i]
-    steps = res[i]*steps
 
-print("Real resolution: ",real_res)
 
 for limit_high_cutoff in cutoffs:
 
