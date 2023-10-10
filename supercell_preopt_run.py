@@ -32,7 +32,7 @@ def find_topdir():
 if __name__ == '__main__':
     
     
-    max_jobs = 120
+    max_jobs = 180
     
     sys.stdout.flush()
     
@@ -86,54 +86,66 @@ if __name__ == '__main__':
                 for subdir in glob("supercell*"):
                     if os.path.isdir(subdir):
                         os.chdir(subdir)
-                        if not any(os.path.isfile("SCFCONV/"+item) for item in checks) and jobs < max_jobs:
-                            print("Calculation set up",dir,subdir)
-                            # vsub
-                            name = glob("*.out")[0].split(".out")[0]
-                            ref_file = glob("*cif")[0]
-                            if "gpaw_szp" in subdir:
-                                print("GPAW found")
-                                process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",ref_file,"-n",name,"-p","--szp"],
-                                    stdin=subprocess.DEVNULL,
-                                    stdout=open(name+'.out', 'w'),
-                                    stderr=subprocess.STDOUT,
-                                    start_new_session=True,
-                                    preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
-                                time.sleep(1)
-                                print("Job:",str(jobs)+"/"+str(max_jobs))
-                                jobs += 1
-                            elif "gpaw_dzp" in subdir:
-                                print("GPAW found")
-                                process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",ref_file,"-n",name,"-p","--dzp"],
-                                    stdin=subprocess.DEVNULL,
-                                    stdout=open(name+'.out', 'w'),
-                                    stderr=subprocess.STDOUT,
-                                    start_new_session=True,
-                                    preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
-                                time.sleep(1)
-                                print("Job:",str(jobs)+"/"+str(max_jobs))
-                                jobs += 1
-                            elif "fast" in subdir:
-                                print("Fast settings")
-                                process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",ref_file,"-n",name,"--fast"],
-                                    stdin=subprocess.DEVNULL,
-                                    stdout=open(name+'.out', 'w'),
-                                    stderr=subprocess.STDOUT,
-                                    start_new_session=True,
-                                    preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
-                                time.sleep(1)
-                                print("Job:",str(jobs)+"/"+str(max_jobs))
-                                jobs += 1
-                            else:
-                                process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",ref_file,"-n",name,"-p"],
-                                    stdin=subprocess.DEVNULL,
-                                    stdout=open(name+'.out', 'w'),
-                                    stderr=subprocess.STDOUT,
-                                    start_new_session=True,
-                                    preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
-                                time.sleep(1)
-                                print("Job:",str(jobs)+"/"+str(max_jobs))
-                                jobs += 1
+                        if not os.path.isfile("SCFCONV/run"):
+                            if not any(os.path.isfile(item) for item in checks) and jobs < max_jobs:
+                                print("Calculation set up",dir,subdir)
+                                # vsub
+                                name = glob("*.out")[0].split(".out")[0]
+                                ref_file = glob("*cif")[0]
+                                if "gpaw_szp" in subdir:
+                                    print("GPAW found")
+                                    process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",ref_file,"-n",name,"-p","--szp"],
+                                        stdin=subprocess.DEVNULL,
+                                        stdout=open(name+'.out', 'w'),
+                                        stderr=subprocess.STDOUT,
+                                        start_new_session=True,
+                                        preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
+                                    time.sleep(1)
+                                    print("Job:",str(jobs)+"/"+str(max_jobs))
+                                    jobs += 1
+                                elif "gpaw_dzp" in subdir:
+                                    print("GPAW found")
+                                    process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",ref_file,"-n",name,"-p","--dzp"],
+                                        stdin=subprocess.DEVNULL,
+                                        stdout=open(name+'.out', 'w'),
+                                        stderr=subprocess.STDOUT,
+                                        start_new_session=True,
+                                        preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
+                                    time.sleep(1)
+                                    print("Job:",str(jobs)+"/"+str(max_jobs))
+                                    jobs += 1
+                                elif "fast" in subdir:
+                                    print("Fast settings")
+                                    process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",ref_file,"-n",name,"--fast"],
+                                        stdin=subprocess.DEVNULL,
+                                        stdout=open(name+'.out', 'w'),
+                                        stderr=subprocess.STDOUT,
+                                        start_new_session=True,
+                                        preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
+                                    time.sleep(1)
+                                    print("Job:",str(jobs)+"/"+str(max_jobs))
+                                    jobs += 1
+                                elif "slow" in subdir:
+                                    print("Slow settings")
+                                    process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",ref_file,"-n",name],
+                                        stdin=subprocess.DEVNULL,
+                                        stdout=open(name+'.out', 'w'),
+                                        stderr=subprocess.STDOUT,
+                                        start_new_session=True,
+                                        preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
+                                    time.sleep(1)
+                                    print("Job:",str(jobs)+"/"+str(max_jobs))
+                                    jobs += 1
+                                else:
+                                    process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",ref_file,"-n",name,"-p"],
+                                        stdin=subprocess.DEVNULL,
+                                        stdout=open(name+'.out', 'w'),
+                                        stderr=subprocess.STDOUT,
+                                        start_new_session=True,
+                                        preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
+                                    time.sleep(1)
+                                    print("Job:",str(jobs)+"/"+str(max_jobs))
+                                    jobs += 1
                         elif jobs > max_jobs-1:
                             print("Job quota met, not starting any new jobs.")
                             break_loop = True

@@ -89,6 +89,10 @@ if __name__ == '__main__':
     sc_min = 12.0
     ML_steps = [100,250,500,1000] #,2500,5000]
     
+    time_ml = {}
+    for i in ML_steps:
+        time_ml[i] = [-1,-1,0]
+    
     if os.path.isfile(topdir+"/SETTINGS/settings.txt"):
         with open(topdir+"/SETTINGS/settings.txt",'r') as f:
             lines = f.readlines()
@@ -211,6 +215,11 @@ if __name__ == '__main__':
         os.chdir(str(i))
         if os.path.isfile(os.getcwd()+"/MD/run") or os.path.isfile(os.getcwd()+"/MD/done"):
             print("MD running or done.")
+            if os.path.isfile(os.getcwd()+"/MD/done") and os.path.isfile(os.getcwd()+"/MD/OUTCAR"):
+                with open(os.getcwd()+"/MD/OUTCAR", "r") as file:
+                    for line in file:
+                        if "Total C" in line:
+                            time_ml[i][0] = float(line.split(":")[1])
         else:
             print(os.getcwd())
             os.chdir("MD")
@@ -220,6 +229,11 @@ if __name__ == '__main__':
             os.chdir("..")
         if os.path.isfile(os.getcwd()+"/REFIT/run") or os.path.isfile(os.getcwd()+"/REFIT/done"):
             print("REFIT running or done.")
+            if os.path.isfile(os.getcwd()+"/REFIT/done") and os.path.isfile(os.getcwd()+"/REFIT/OUTCAR"):
+                with open(os.getcwd()+"/REFIT/OUTCAR", "r") as file:
+                    for line in file:
+                        if "Total C" in line:
+                            time_ml[i][1] = float(line.split(":")[1])
         elif os.path.isfile(os.getcwd()+"/MD/done"):
             if os.path.isfile(os.getcwd()+"/MD/ML_ABN"):
                 shutil.copyfile(os.getcwd()+"/MD/ML_ABN",os.getcwd()+"/REFIT/ML_AB")
@@ -313,6 +327,11 @@ if __name__ == '__main__':
                     print(subprocess.run(["/home/70/bt308570/vasp.6.4.1_neb/bin/vasp_std"], shell=True, stdout=subprocess.PIPE))
                     incar.write_file("done")
                     os.chdir("..")
+                elif os.path.isfile(disp_dir+"/done"):
+                    with open(disp_dir+"/OUTCAR", "r") as file:
+                        for line in file:
+                            if "Total C" in line:
+                                time_ml[i][2] = time_ml[i][2] + float(line.split(":")[1])
                     
             run_phonopy = True
             for j in range(1,max(numbers)+1):
@@ -356,12 +375,21 @@ if __name__ == '__main__':
                 with open(res_dir+'/thermo.txt', 'w') as file:
                     file.write("      T        G   G/unit\n")
                     file.write("      K       eV  eV/unit\n")
-                    for i in range(0,len(temperature)):
-                        t = "{:7.2f}".format(float(temperature[i]))
-                        g = "{:10.4f}".format(float(free_energy[i])/96.49)
-                        g_atom = "{:10.4f}".format(float(free_energy[i])/96.49/Z)
+                    for temps in range(0,len(temperature)):
+                        t = "{:7.2f}".format(float(temperature[temps]))
+                        g = "{:10.4f}".format(float(free_energy[temps])/96.49)
+                        g_atom = "{:10.4f}".format(float(free_energy[temps])/96.49/Z)
                         file.write(t+' '+g+" "+g_atom+"\n")
+                        
         
+                        
+                with open(res_dir+'/times.txt', 'w') as file:
+                    file.write("MD       "+"{:10.0f}".format(time_ml[i][0])+"\n")
+                    file.write("REFIT    "+"{:10.0f}".format(time_ml[i][1])+"\n")
+                    file.write("FF       "+"{:10.0f}".format(time_ml[i][2])+"\n")
+                    file.write("per disp "+"{:10.2f}".format(time_ml[i][2]/max(numbers))+"\n")
+                    total = time_ml[i][0] + time_ml[i][1] + time_ml[i][2]
+                    file.write("TOTAL    "+"{:10.0f}".format(total)+"\n")
         
         os.chdir(workdir)
     

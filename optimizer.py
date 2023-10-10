@@ -241,6 +241,9 @@ if gpaw == False:
     result = Vasprun("vasprun.xml")
     outcar = Outcar("OUTCAR")
     max_steps = 80000.0/outcar.run_stats["Elapsed time (sec)"]
+    if max_steps < 20:
+        print("Slow calculation detected!")
+        max_steps = 20
 else:
     if os.path.isfile("KPOINTS"):
         kpoints = Kpoints.from_file("KPOINTS")

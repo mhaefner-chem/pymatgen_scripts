@@ -8,7 +8,7 @@ Created on Tue Jun  6 12:21:39 2023
 
 # this program collects all results and compiles them into one file for each structure
 
-import sys,os,importlib,glob,warnings
+import sys,os,importlib,glob,warnings,operator,math
 from pymatgen.core import Structure,Composition
 from scipy import stats
 import matplotlib.pyplot as plt
@@ -89,8 +89,9 @@ structures = {}
 
 
 #specify the different calculation types
-e_types = ["Q","fullAI","SP","fastAI","fastSP","SZP_SP","SZP_OPT","DZP_SP","DZP_OPT","ML"] # coulomb, sp, ML, partopt
+e_types = ["Q","fullAI","SP","fastAI","fastSP","SZP_SP","SZP_OPT","DZP_SP","DZP_OPT","ML","slowAI","slowSP"] # coulomb, sp, ML, partopt
 e_min = [1] * len(e_types)
+reference = "slowAI"
 
 timings = {}
 e_all = {}
@@ -119,12 +120,15 @@ atoms = structure.num_sites
 for calculation in calculations:
     config = calculation.split("_gpaw")[0]
     config = config.split("_fast")[0]
+    config = config.split("_slow")[0]
     os.chdir(calculation)
     if os.path.isfile("done") and os.path.isfile("OUTCAR"):
         
         # get full ab-initio results
         if "fast" in calculation:
             index = e_types.index("fastAI")
+        elif "slow" in calculation:
+            index = e_types.index("slowAI")
         else:
             index = e_types.index("fullAI")
         
@@ -139,6 +143,8 @@ for calculation in calculations:
         
         if "fast" in calculation:
             index = e_types.index("fastSP")
+        elif "slow" in calculation:
+            index = e_types.index("slowSP")
         else:
             index = e_types.index("SP")
         e_all[config][index] = energy("SCFCONV/OUTCAR")[0]/Z
@@ -173,11 +179,15 @@ for calculation in calculations:
     elif os.path.isfile("SCFCONV/OUTCAR"):
         if "fast" in calculation:
             index = e_types.index("fastAI")
+        elif "slow" in calculation:
+            index = e_types.index("slowAI")
         else:
             index = e_types.index("fullAI")
         run_success[config][index] = 1
         if "fast" in calculation:
             index = e_types.index("fastSP")
+        elif "slow" in calculation:
+            index = e_types.index("slowSP")
         else:
             index = e_types.index("SP")
         run_success[config][index] = 1
@@ -270,7 +280,7 @@ for key,e in e_all.items():
 
 x_lin = np.linspace(0, 2, 100)
 ref = []
-index = e_types.index("fullAI")
+index = e_types.index(reference)
 
 for key, values in e_proper.items():
     ref.append(values[index]/e_min[index])
@@ -331,7 +341,7 @@ for i in range(len(e_types)):
         
 print("{:^10}".format("Method"),"{:^6}".format("r²"),"{:^8}".format("a.m. t/s"),"{:^8}".format("speed-up"),"{:^6}".format("r² > Q?"))
 
-index_ref = e_types.index("fullAI")
+index_ref = e_types.index(reference)
 index_Q = e_types.index("Q")
 for i in range(len(e_types)):
     if r2_all[i] > 0:
@@ -353,12 +363,15 @@ for i in range(1,len(e_types)):
     for config in e_all:
         if run_success[config][i] == -1:
             counter[0] += 1
-            print("check",config,e_types[i])
+
         elif run_success[config][i] == 1:
             counter[1] += 1
         successful[i] = len(e_all)-counter[0]-counter[1]
     print("{:10}".format(e_types[i]),":",str(counter[0])+"/"+str(len(e_all)),
           "missing,",str(counter[1])+"/"+str(len(e_all)),"failed")
+    for config in e_all:
+        if run_success[config][i] != 0 and successful[i] > 0:
+            print("check",config,e_types[i])
 
 print("################################")
 
@@ -381,7 +394,47 @@ with open("results.dat", 'w') as file:
     for i in range(len(e_types)):
         file.write("{:5.0f}".format(successful[i]))
     file.write("\n")
+    file.write("e_min:")
+    for i in range(len(e_types)):
+        file.write("{:10.3f}".format(e_min[i]))
+    file.write("\n")
+    
+# sorted energy analysis
+
+e_sorted = {}
+for i in range(len(e_types)):
+    tmp = []
+    k = 0
+    for config in configs:
+        k += 1
+        tmp.append([k,e_all[config][i]])
+    e_sorted[i] = sorted(tmp, key=operator.itemgetter(1))
+
+ratios = [] #[0.01,0.05,0.10,0.20,0.25,0.5,1.0]
+
+for ratio in ratios:
+    scope = math.ceil(ratio*len(e_all))
+    print("%%%%%%\n"+str(scope)+"\n%%%%%")
+    ref = []
+    e_truncated = {}
+    overlap = [0] * len(e_types)
+    
+    for i in range(scope):
+        ref.append(e_sorted[index][i][0])
         
+    for i in range(len(e_types)):
+        tmp = []
+        for j in range(scope):
+            tmp.append(e_sorted[i][j][0])
+        e_truncated[i] = tmp
+        
+    for i in range(len(e_types)):
+        for j in range(scope):
+            if ref[j] in e_truncated[i]:
+                overlap[i] += 1
+        print("{:12}".format(e_types[i])," - overlap: ","{:6.2f}".format(overlap[i]/scope*100.0E0)," %")
+            
+    
 
 sys.exit()
 

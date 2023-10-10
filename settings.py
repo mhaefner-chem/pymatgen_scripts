@@ -63,6 +63,7 @@ def incar_settings(arg):
         settings["EDIFF"] = 1e-7
         settings["EDIFFG"] = -0.003
         settings["NELMIN"] = 4
+        settings["SYMPREC"] = 1e-4
         
     elif arg == "Fastopt":
         settings["GGA"] = prefunc
@@ -72,5 +73,6 @@ def incar_settings(arg):
         settings.pop("ENCUT")
         settings.pop("ENAUG")
         settings["PREC"] = "Normal"
+        settings["SYMPREC"] = 1e-4
     
     return settings

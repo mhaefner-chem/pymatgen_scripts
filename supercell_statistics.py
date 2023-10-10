@@ -8,10 +8,11 @@ Created on Tue Aug  1 14:18:04 2023
 
 # this program does statistics
 
-import sys,os,importlib,glob,warnings
+import sys,os,importlib,glob,warnings,math,operator
 from pymatgen.core import Structure,Composition
 from scipy import stats
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import numpy as np
 
 
@@ -51,6 +52,8 @@ for item in data:
 
 
 norm = []
+relative = []
+full = []
 timing_sets = []
 
 for item in data:
@@ -81,13 +84,24 @@ for item in data:
                 e_min[i] = min(values[i],e_min[i])
         
         for values in e_dat:
-            temp = []
+            temp_norm = []
+            temp_rel = []
+            temp_full = []
             for i in range(len(e_types)):
                 if values[i] < 0:
-                    temp.append(values[i]/e_min[i])
+                    temp_full.append(values[i]-e_min[i])
+                    temp_norm.append(values[i]/e_min[i])
+                    if values[e_types.index("fullAI")] < 0:
+                        temp_rel.append(values[i]-e_min[i]-values[e_types.index("fullAI")]+e_min[e_types.index("fullAI")])
+                    else:
+                        temp_rel.append(200)
                 else:
-                    temp.append(2)
-            norm.append(temp)
+                    temp_full.append(20000)
+                    temp_norm.append(2)
+                    temp_rel.append(200)
+            full.append(temp_full)
+            norm.append(temp_norm)
+            relative.append(temp_rel)
                     
 # timings
 
@@ -187,6 +201,70 @@ ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
  
 plt.show() 
 fig.savefig('supercell_statistics.png', format='png',bbox_inches="tight",dpi=600)
+
+# plot relative energies
+
+# a = sorted(e_dat, key=operator.itemgetter(1))
+
+# fig, ax = plt.subplots()
+# cmap = mpl.cm.tab10
+
+# i = 0
+# for item in relative:
+#     i += 1
+#     j = 0
+#     for value in item:
+#         j += 1
+#         plt.scatter(j,value,marker="o",alpha=0.8,
+#                 label="",s=size,linewidth=linewidth,color=cmap(j/len(e_types)))
+#         if i == 1:
+#             plt.scatter(0,-20,marker="o",
+#                     label=e_label[j-1],s=size,linewidth=linewidth,color=cmap(j/len(e_types)))
+            
+# plt.legend()
+# plt.ylim(ymin=-1.5, ymax=1.5)
+# plt.xlim(xmin=-5, xmax=10)
+# ax.grid(zorder=0,linestyle="--",alpha=0.5)
+# plt.show()
+
+# sorted energies analysis
+
+e_sorted = {}
+for i in range(len(e_types)):
+    tmp = []
+    k = 0
+    for j in full:
+        k += 1
+        tmp.append([k,j[i]])
+    e_sorted[i] = sorted(tmp, key=operator.itemgetter(1))
+
+ratios = [0.01,0.05,0.10,0.20,0.25,0.5,1.0]
+
+for ratio in ratios:
+    scope = math.ceil(ratio*len(full))
+    print("%%%%%%\n"+str(scope)+"\n%%%%%")
+    ref = []
+    e_truncated = {}
+    overlap = [0] * len(e_types)
+    
+    for i in range(scope):
+        ref.append(e_sorted[index][i][0])
+        
+    for i in range(len(e_types)):
+        tmp = []
+        for j in range(scope):
+            tmp.append(e_sorted[i][j][0])
+        e_truncated[i] = tmp
+        
+    for i in range(len(e_types)):
+        for j in range(scope):
+            if ref[j] in e_truncated[i]:
+                overlap[i] += 1
+        print("{:12}".format(e_types[i])," - overlap: ",overlap[i]/scope*100.0E0," %")
+            
+
+        
+
 
 index = e_types.index("DZP_SP")               
 counter = 0

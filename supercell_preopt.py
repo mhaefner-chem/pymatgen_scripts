@@ -123,6 +123,8 @@ if __name__ == '__main__':
                 base_name = base_name + "_gpaw_dzp"
             elif mode == "fast":
                   base_name = base_name + "_fast"
+            elif mode == "slow":
+                  base_name = base_name + "_slow"
                    
             directory_tools.make_directory(base_name)
             shutil.copyfile(i,os.path.join(base_name,i))
@@ -134,6 +136,14 @@ if __name__ == '__main__':
                 print(counter)
                 if mode == "fast":
                     process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",i,"-n",name_prefix+"_"+base_name,"--fast","--ionly"],
+                                 stdin=subprocess.DEVNULL,
+                                 stdout=open(name_prefix+"_"+base_name+'.out', 'w'),
+                                 stderr=subprocess.STDOUT,
+                                 start_new_session=True,
+                                 preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
+                    process.wait()
+                elif mode == "slow":
+                    process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",i,"-n",name_prefix+"_"+base_name,"--ionly"],
                                  stdin=subprocess.DEVNULL,
                                  stdout=open(name_prefix+"_"+base_name+'.out', 'w'),
                                  stderr=subprocess.STDOUT,
