@@ -41,7 +41,7 @@ directory_tools = importlib.util.module_from_spec(spec)
 sys.modules["name"] = directory_tools
 spec.loader.exec_module(directory_tools)        
 
-data = glob.glob("*.dat")
+data = glob.glob("*Z*.dat")
 
 for item in data:
     with open(item,"r") as file:
@@ -55,9 +55,9 @@ norm = []
 relative = []
 full = []
 timing_sets = []
+e_dat = []
 
 for item in data:
-    e_dat = []
     e_min = [1] * len(e_types)
     timings = [0.0] * len(e_types)
     successes = [0] * len(e_types)
@@ -79,29 +79,29 @@ for item in data:
                 e_dat.append(e)
         timing_sets.append([timings,successes])
         
-        for i in range(len(e_types)):
-            for values in e_dat:
-                e_min[i] = min(values[i],e_min[i])
+for i in range(len(e_types)):
+    for values in e_dat:
+        e_min[i] = min(values[i],e_min[i])
         
-        for values in e_dat:
-            temp_norm = []
-            temp_rel = []
-            temp_full = []
-            for i in range(len(e_types)):
-                if values[i] < 0:
-                    temp_full.append(values[i]-e_min[i])
-                    temp_norm.append(values[i]/e_min[i])
-                    if values[e_types.index("fullAI")] < 0:
-                        temp_rel.append(values[i]-e_min[i]-values[e_types.index("fullAI")]+e_min[e_types.index("fullAI")])
-                    else:
-                        temp_rel.append(200)
-                else:
-                    temp_full.append(20000)
-                    temp_norm.append(2)
-                    temp_rel.append(200)
-            full.append(temp_full)
-            norm.append(temp_norm)
-            relative.append(temp_rel)
+for values in e_dat:
+    temp_norm = []
+    temp_rel = []
+    temp_full = []
+    for i in range(len(e_types)):
+        if values[i] < 0:
+            temp_full.append(values[i]-e_min[i]) # or e_min[i]
+            temp_norm.append(values[i]/e_min[i])
+            if values[e_types.index("fullAI")] < 0:
+                temp_rel.append(values[i]-e_min[i]-values[e_types.index("fullAI")]+e_min[e_types.index("fullAI")])
+            else:
+                temp_rel.append(200)
+        else:
+            temp_full.append(20000)
+            temp_norm.append(2)
+            temp_rel.append(200)
+    full.append(temp_full)
+    norm.append(temp_norm)
+    relative.append(temp_rel)
                     
 # timings
 
@@ -199,7 +199,7 @@ ax.set_ylabel('rel. Energy/PBE-D3(BJ)/500 eV/Accurate')
 # ax.set_aspect(2)
 ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
  
-plt.show() 
+#plt.show() 
 fig.savefig('supercell_statistics.png', format='png',bbox_inches="tight",dpi=600)
 
 # plot relative energies
@@ -238,8 +238,13 @@ for i in range(len(e_types)):
         tmp.append([k,j[i]])
     e_sorted[i] = sorted(tmp, key=operator.itemgetter(1))
 
-ratios = [0.01,0.05,0.10,0.20,0.25,0.5,1.0]
+# ratios = [0.01,0.05,0.10,0.20,0.25,0.5,1.0]
+ratios = []
+#ratios = np.linspace(0.01,1.0,num=math.ceil(len(full)/5))
 
+overlap_array = {}
+
+# total overlap at all points
 for ratio in ratios:
     scope = math.ceil(ratio*len(full))
     print("%%%%%%\n"+str(scope)+"\n%%%%%")
@@ -255,15 +260,88 @@ for ratio in ratios:
         for j in range(scope):
             tmp.append(e_sorted[i][j][0])
         e_truncated[i] = tmp
-        
+    
+    tmp = []
     for i in range(len(e_types)):
+        
         for j in range(scope):
             if ref[j] in e_truncated[i]:
                 overlap[i] += 1
         print("{:12}".format(e_types[i])," - overlap: ",overlap[i]/scope*100.0E0," %")
-            
+        tmp.append(overlap[i]/scope)
+    overlap_array[ratio] = tmp
+    
+# write results to file
+with open("overlaps.dat", 'w') as file:
+    for i in range(len(e_types)):
+        file.write(e_types[i]+" ")
+    file.write("\n")
 
+    for ratio in ratios:
+        scope = math.ceil(ratio*len(full))
+        file.write("{:4}".format(scope))
+        for i in range(len(e_types)):
+            file.write("{:7.4f}".format(overlap_array[ratio][i]))
+        file.write("\n")
+
+# overlap for the N lowest structures
         
+N = 25
+overlap_array = {}
+ratios = np.linspace(0.02,0.3,num=math.ceil(len(full)*0.23))
+
+for i in range(len(full)):
+    print(i+1,full[i][index])
+for i in range(N):
+    print(e_sorted[index][i])
+print("Q")
+for i in range(N):
+    print(e_sorted[e_types.index("Q")][i])
+print("SZP_SP")
+for i in range(N):
+    print(e_sorted[e_types.index("SZP_SP")][i])
+print("SZP_OPT")
+for i in range(N):
+    print(e_sorted[e_types.index("SZP_OPT")][i])
+
+#for i in range(N):
+#    print(full[e_sorted[index][i][0]][index])
+for ratio in ratios:
+    scope = math.ceil(ratio*len(full))
+    ref = []
+    e_truncated = {}
+    overlap = [0] * len(e_types)
+    
+    for i in range(N):
+        ref.append(e_sorted[index][i][0])
+    
+    for i in range(len(e_types)):
+        tmp = []
+        for j in range(scope):
+            tmp.append(e_sorted[i][j][0])
+        e_truncated[i] = tmp
+    
+    tmp = []
+    for i in range(len(e_types)):
+        
+        for j in range(scope):
+            if e_truncated[i][j] in ref:
+                overlap[i] += 1
+        tmp.append(overlap[i]/N)
+    overlap_array[ratio] = tmp
+        
+with open("lowest_overlaps.dat", 'w') as file:
+    for i in range(len(e_types)):
+        file.write(e_types[i]+" ")
+    file.write("\n")
+
+    for ratio in ratios:
+        scope = math.ceil(ratio*len(full))
+        file.write("{:4}".format(scope))
+        for i in range(len(e_types)):
+            file.write("{:7.4f}".format(overlap_array[ratio][i]))
+        file.write("\n")
+
 
 
 index = e_types.index("DZP_SP")               

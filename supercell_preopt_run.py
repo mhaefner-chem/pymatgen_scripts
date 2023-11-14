@@ -32,8 +32,7 @@ def find_topdir():
 if __name__ == '__main__':
     
     
-    max_jobs = 180
-    
+    max_jobs = 360    
     sys.stdout.flush()
     
     file_dir = os.getcwd()
@@ -52,7 +51,7 @@ if __name__ == '__main__':
     
     preopt_dir = workdir+"/SUPERCELL/PREOPT"
     outer_loop = 0
-    while outer_loop < 600:
+    while outer_loop > -2:
         outer_loop += 1
         print(outer_loop)
         os.chdir(preopt_dir)
@@ -100,7 +99,7 @@ if __name__ == '__main__':
                                         stderr=subprocess.STDOUT,
                                         start_new_session=True,
                                         preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
-                                    time.sleep(1)
+                                    time.sleep(0.3)
                                     print("Job:",str(jobs)+"/"+str(max_jobs))
                                     jobs += 1
                                 elif "gpaw_dzp" in subdir:
@@ -111,7 +110,7 @@ if __name__ == '__main__':
                                         stderr=subprocess.STDOUT,
                                         start_new_session=True,
                                         preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
-                                    time.sleep(1)
+                                    time.sleep(0.3)
                                     print("Job:",str(jobs)+"/"+str(max_jobs))
                                     jobs += 1
                                 elif "fast" in subdir:
@@ -122,7 +121,7 @@ if __name__ == '__main__':
                                         stderr=subprocess.STDOUT,
                                         start_new_session=True,
                                         preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
-                                    time.sleep(1)
+                                    time.sleep(0.3)
                                     print("Job:",str(jobs)+"/"+str(max_jobs))
                                     jobs += 1
                                 elif "slow" in subdir:
@@ -133,7 +132,7 @@ if __name__ == '__main__':
                                         stderr=subprocess.STDOUT,
                                         start_new_session=True,
                                         preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
-                                    time.sleep(1)
+                                    time.sleep(0.3)
                                     print("Job:",str(jobs)+"/"+str(max_jobs))
                                     jobs += 1
                                 else:
@@ -143,7 +142,7 @@ if __name__ == '__main__':
                                         stderr=subprocess.STDOUT,
                                         start_new_session=True,
                                         preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
-                                    time.sleep(1)
+                                    time.sleep(0.3)
                                     print("Job:",str(jobs)+"/"+str(max_jobs))
                                     jobs += 1
                         elif jobs > max_jobs-1:
@@ -154,7 +153,8 @@ if __name__ == '__main__':
             
                         os.chdir(os.path.join(preopt_dir,dir))
                 os.chdir(preopt_dir)
-        time.sleep(1200)
+        #time.sleep(1200)
+        sys.exit()
             
     
 

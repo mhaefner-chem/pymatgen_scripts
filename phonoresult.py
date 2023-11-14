@@ -36,10 +36,13 @@ phon_dir = workdir+"/VIB"
 calcs = [f for f in os.listdir(phon_dir) if os.path.isdir(os.path.join(phon_dir, f))]
 
 for struc in calcs:
-    
+    print(struc)
     # get information on the amount of single point calculations
     os.chdir(phon_dir+"/"+struc)
-    structure = Structure.from_file("CONTCAR")
+    if os.path.isfile("CONTCAR"):
+        structure = Structure.from_file("CONTCAR")
+    else:
+        continue
     pattern = 'POSCAR-*'
     files = glob.glob(pattern)
     numbers = [int(os.path.splitext(os.path.basename(file))[0].split('-')[-1]) for file in files]
@@ -60,12 +63,12 @@ for struc in calcs:
     # check if the forces were already calculated, run phonopy if not
     if run_phonopy == True and os.path.isfile("FORCE_SETS") == False:
         print("Calculating forces for: "+struc)
-        print(subprocess.run(["phonopy -f disp-{001.."+str(n_files)+"}/vasprun.xml"], shell=True, stdout=subprocess.PIPE))
+        print(subprocess.run(["mpiexec -n 1 phonopy -f disp-{001.."+str(n_files)+"}/vasprun.xml"], shell=True, stdout=subprocess.PIPE))
         
     # check if the thermodynamic data was already calculated, run phonopy if not
     #if os.path.isfile("thermal_properties.yaml") == False and
-    if os.path.isfile("mesh.conf") == True and os.path.isfile("FORCE_SETS") == True:
-        print(subprocess.run(["phonopy mesh.conf -t"], shell=True, stdout=subprocess.PIPE))
+    if os.path.isfile("mesh.conf") == True and os.path.isfile("FORCE_SETS") == True and os.path.isfile("thermal_properties.yaml") == False:
+        print(subprocess.run(["mpiexec -n 1 phonopy mesh.conf -t"], shell=True, stdout=subprocess.PIPE))
         # remove xml files!
     
     # if thermodynamic data is available, extract all necessary information

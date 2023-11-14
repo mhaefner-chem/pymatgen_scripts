@@ -176,6 +176,10 @@ if __name__ == '__main__':
                 # adapt INCAR file, generate POTCAR
                 vasp_input = MPScanRelaxSet(tmp_struc)
                 vasp_input.user_incar_settings = settings.incar_settings("phonopy_sps")
+                accuracy = 12.0
+                vasp_input.user_incar_settings["NGX"] = math.ceil(tmp_struc.lattice.abc[0] * accuracy)
+                vasp_input.user_incar_settings["NGY"] = math.ceil(tmp_struc.lattice.abc[1] * accuracy)
+                vasp_input.user_incar_settings["NGZ"] = math.ceil(tmp_struc.lattice.abc[2] * accuracy)
                 vasp_input.write_input(".")
                 incar = Incar.from_file("INCAR")
                 if "GGA" in incar and "METAGGA" in incar:

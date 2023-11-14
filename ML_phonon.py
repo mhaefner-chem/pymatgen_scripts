@@ -8,8 +8,8 @@ Created on Tue Jul 18 13:31:00 2023
 
 from pymatgen.core import Structure,Composition
 from pymatgen.io.vasp.inputs import Kpoints,Incar,Poscar
-from pymatgen.io.vasp.outputs import Vasprun
 from pymatgen.io.vasp.sets import MPScanRelaxSet
+from pymatgen.transformations.standard_transformations import SupercellTransformation
 
 import sys,os,shutil,math,glob
 import importlib.util
@@ -71,6 +71,7 @@ if __name__ == '__main__':
     else:
         print("KPOINTS file missing!")
         sys.exit()
+    name = os.path.basename(os.getcwd())
 
 # import the directory tools and settings
     spec = importlib.util.spec_from_file_location("directory_tools",topdir + "/bin/directory_tools.py")
@@ -87,7 +88,8 @@ if __name__ == '__main__':
     tmax = 1500.0
     tstep = 50.0
     sc_min = 12.0
-    ML_steps = [100,250,500,1000] #,2500,5000]
+    learn_min = 4.0
+    ML_steps = [100,250,500] #,1000] #,2500,5000]
     
     time_ml = {}
     for i in ML_steps:
@@ -96,7 +98,7 @@ if __name__ == '__main__':
     if os.path.isfile(topdir+"/SETTINGS/settings.txt"):
         with open(topdir+"/SETTINGS/settings.txt",'r') as f:
             lines = f.readlines()
-            name = lines[0]
+            # name = lines[0]
             for i in range(0,len(lines)):
                 if "TMIN" in lines[i]:
                     tmin = float(lines[i].split("=")[1])
@@ -114,7 +116,7 @@ if __name__ == '__main__':
     directory_tools.make_directory(ML_dir)
 
     os.chdir(ML_dir)
-    name = directory_tools.directory_name_constructor(structure)
+    # name = directory_tools.directory_name_constructor(structure)
     workdir = os.path.join(ML_dir,name)
     
     # alternative settings
@@ -150,13 +152,40 @@ if __name__ == '__main__':
     incar["RANDOM_SEED"] = [574299384,0,0]
     
     
+    unit_struc = structure
+    # using a supercell with all lattice parameters > 4 AA each
+    lat_param_alt = [0,0,0]
+    dim = [1,1,1]
+    for i in range(0,3):
+        lat_param_alt[i] = structure.lattice.abc[i]
+        while lat_param_alt[i] < learn_min:
+            lat_param_alt[i] = lat_param_alt[i] + structure.lattice.abc[i]
+            dim[i] = dim[i] + 1
+    
+    st = SupercellTransformation.from_scaling_factors(dim[0],dim[1],dim[2])
+    structure = st.apply_transformation(structure)
+    
+    # write new KPOINTS file with reduced k-points
+    reduced_kpts = kpoints.kpts
+    for i in range(0,3):
+        reduced_kpts[0][i] = math.ceil(kpoints.kpts[0][i]/dim[i])
+    kpoints.kpts = reduced_kpts
+    kpoints.write_file("KPOINTS")
+    
     vasp_input = MPScanRelaxSet(structure)
     vasp_input.write_input(".")
+    
+    accuracy = 12.0
+    incar["NGX"] = math.ceil(structure.lattice.abc[0] * accuracy)
+    incar["NGY"] = math.ceil(structure.lattice.abc[1] * accuracy)
+    incar["NGZ"] = math.ceil(structure.lattice.abc[2] * accuracy)
+    
     incar.write_file("INCAR")
-    kpoints.write_file("KPOINTS")
     structure.to("POSCAR",fmt="vasp")
     
+    
     poscar = Poscar(structure)
+    unit_poscar = Poscar(unit_struc)
     
     for i in ML_steps:
         directory_tools.make_directory(str(i))
@@ -206,7 +235,7 @@ if __name__ == '__main__':
                 for line in fin:
                     fout.write(line.replace('Run', 'run'))
         kpoints.write_file("KPOINTS")
-        poscar.write_file("POSCAR")
+        unit_poscar.write_file("POSCAR")
         os.chdir(workdir)
     
     
@@ -346,7 +375,7 @@ if __name__ == '__main__':
                 
             # check if the thermodynamic data was already calculated, run phonopy if not
             #if os.path.isfile("thermal_properties.yaml") == False and
-            if os.path.isfile("mesh.conf") == True and os.path.isfile("FORCE_SETS") == True:
+            if os.path.isfile("mesh.conf") == True and os.path.isfile("FORCE_SETS") == True and os.path.isfile("thermal_properties.yaml") == False:
                 print(subprocess.run(["phonopy mesh.conf -t"], shell=True, stdout=subprocess.PIPE))
                 
             if os.path.isfile("thermal_properties.yaml") == True:

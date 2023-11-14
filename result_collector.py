@@ -203,6 +203,7 @@ for result in results:
     
         delta_e = delta_e - (min(frac) * float(ref_e[ref_name[reference]]))
         for i in range(0,len(temperatures)):
+            # print(ref_name[reference],ref_thermo[ref_name[reference]])
             delta_thermo[i] = delta_thermo[i] - (min(frac) * float(ref_thermo[ref_name[reference]][i]))
             frac_tot[reference] = min(frac)
      

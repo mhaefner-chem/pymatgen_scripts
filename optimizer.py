@@ -77,16 +77,18 @@ def vsub(name,dir):
         while i == 0:
             shutil.copyfile("INCAR","run")  
             print(subprocess.run(["/home/70/bt308570/bin/vsub_py "+name+".inp"], shell=True, stdout=subprocess.PIPE)) 
-            sleeper()
             
             j = 1
-            with open('OUTCAR','r') as file:
-                for line in file:
-                    if 'ZBRENT: fatal error in bracketing' in line:
-                        shutil.copyfile("CONTCAR",name+".inp")
-                        os.remove("done")
-                        print("ZBRENT error encountered!")
-                        j = 0
+            if os.path.isfile("OUTCAR"):
+                with open('OUTCAR','r') as file:
+                    for line in file:
+                        if 'ZBRENT: fatal error in bracketing' in line:
+                            shutil.copyfile("CONTCAR",name+".inp")
+                            os.remove("done")
+                            print("ZBRENT error encountered!")
+                            j = 0
+            # else:
+                # sys.exit()
             i = j
         result = Vasprun("vasprun.xml")
         os.chdir(workdir)
@@ -105,7 +107,7 @@ def gsub(gpaw_mode,name):
         shutil.copyfile(name+".inp","run")  
         shutil.copyfile(name+".inp","POSCAR") 
         print(subprocess.run(["/home/70/bt308570/bin/gsub "+gpaw_mode+".py"], shell=True, stdout=subprocess.PIPE)) 
-        sleeper()
+        sys.exit()
         return
 
 # sets up a sleep loop for the script to wait for the calculation to finish, runs for about a week before giving up

@@ -16,7 +16,8 @@ import numpy as np
 
 
 def energy(outcar):
-    last_match = None
+    last_match = "free energy = 100000 eV"
+    timing = "Total CPU : -100"
 
     
     with open(outcar, 'r') as file:
@@ -89,7 +90,7 @@ structures = {}
 
 
 #specify the different calculation types
-e_types = ["Q","fullAI","SP","fastAI","fastSP","SZP_SP","SZP_OPT","DZP_SP","DZP_OPT","ML","slowAI","slowSP"] # coulomb, sp, ML, partopt
+e_types = ["Q","fullAI","SP","fastAI","fastSP","SZP_SP","SZP_OPT","DZP_SP","DZP_OPT","ML"]#,"slowAI","slowSP"] # coulomb, sp, ML, partopt
 e_min = [1] * len(e_types)
 reference = "slowAI"
 
@@ -133,6 +134,8 @@ for calculation in calculations:
             index = e_types.index("fullAI")
         
         final_energy,timing = energy("OUTCAR")
+        if final_energy > 10000:
+            print(calculation)
         run_success[config][index] = 0
         timings[config][index] = timing
         
@@ -410,7 +413,7 @@ for i in range(len(e_types)):
         tmp.append([k,e_all[config][i]])
     e_sorted[i] = sorted(tmp, key=operator.itemgetter(1))
 
-ratios = [] #[0.01,0.05,0.10,0.20,0.25,0.5,1.0]
+ratios = [0.01,0.05,0.1,0.25] #[0.01,0.05,0.10,0.20,0.25,0.5,1.0]
 
 for ratio in ratios:
     scope = math.ceil(ratio*len(e_all))
