@@ -8,11 +8,17 @@ Created on Tue Jun 20 11:55:16 2023
 
 import subprocess
 
-process = subprocess.Popen(['squeue',"-u","bt308570"],
+process = subprocess.Popen(['squeue'],
              stdin=subprocess.DEVNULL,
              stdout=subprocess.PIPE,
              start_new_session=False)
 out, err = process.communicate()
+jobs = out.decode().count("normal")
+
+
+print("All normal jobs:",jobs)
+
+
 jobs = out.decode().count("bt308570")
 
-print(jobs)
+print("My jobs:",jobs)

@@ -7,6 +7,7 @@ Created on Tue Jul 18 13:31:00 2023
 """
 
 from pymatgen.core import Structure,Composition
+from pymatgen.core.periodic_table import Element
 from pymatgen.io.vasp.inputs import Kpoints,Incar,Poscar
 from pymatgen.io.vasp.sets import MPScanRelaxSet
 from pymatgen.transformations.standard_transformations import SupercellTransformation
@@ -38,13 +39,39 @@ if __name__ == '__main__':
     topdir = find_topdir()
     
     T = 400.0
+    EDIFF = "-7"
+    ACC = True
+    ML_WTIFOR = 1.0
+    MAXMIX = -1
+    alt_settings = ""
     
     # read command line arguments
     n = len(sys.argv)
     for i in range(0,n):
        # reference structure
           if sys.argv[i] == "-t":
-             T = float(sys.argv[i+1])
+              T = int(sys.argv[i+1])
+          elif sys.argv[i] == "-e" or sys.argv[i] == "--energy":
+              EDIFF = sys.argv[i+1]
+          elif sys.argv[i] == "-n" or sys.argv[i] == "--normal":
+              ACC = False
+          elif sys.argv[i] == "-f" or sys.argv[i] == "--force":
+              ML_WTIFOR = float(sys.argv[i+1])
+          elif sys.argv[i] == "-m" or sys.argv[i] == "--maxmix":
+              MAXMIX = int(sys.argv[i+1])  
+              
+    alt_settings = alt_settings + "_" + str(T)   
+    alt_settings = alt_settings + "_" + EDIFF
+    alt_settings = alt_settings + "_" + str(ML_WTIFOR)
+    if MAXMIX > 0:
+        alt_settings = alt_settings + "_" + str(MAXMIX)
+    else:
+        alt_settings = alt_settings + "_NOMIX"
+    if ACC == True:
+        alt_settings = alt_settings + "_ACC"
+    else:
+        alt_settings = alt_settings + "_NORM"
+    
     #     if sys.argv[i] == "-i":
     #         incar = Incar.from_file(sys.argv[i+1])
     #     if sys.argv[i] == "-k":
@@ -89,7 +116,7 @@ if __name__ == '__main__':
     tstep = 50.0
     sc_min = 12.0
     learn_min = 4.0
-    ML_steps = [100,250,500] #,1000] #,2500,5000]
+    ML_steps = [250] #[100,250,500] #,1000] #,2500,5000]
     
     time_ml = {}
     for i in ML_steps:
@@ -127,7 +154,7 @@ if __name__ == '__main__':
     # alt_settings = "_FS_1.5"
     # incar["ML_WTIFOR"] = 1.5
     
-    alt_settings = ""
+    
    
     workdir = workdir + alt_settings
     
@@ -137,7 +164,20 @@ if __name__ == '__main__':
     # INCAR manipulation
     
     incar["IBRION"] = 0
-    incar["POTIM"] = 2.0
+    composition = Composition(structure.composition)
+    row2 = ["C","N","O","F"]
+    row2_elements = []
+    for i in row2:
+        row2_elements.append(Element(i))
+    for i in row2_elements:
+        if i in composition.elements:
+            incar["POTIM"] = 1.5
+            break
+        else:
+            incar["POTIM"] = 2.0
+    
+    print(incar["POTIM"])
+    
     incar["MDALGO"] = 3
     LG = []
     for i in range(structure.ntypesp):
@@ -150,6 +190,12 @@ if __name__ == '__main__':
     incar["ML_LMLFF"] = "T"
     incar["ML_WTSIF"] = 2
     incar["RANDOM_SEED"] = [574299384,0,0]
+    if MAXMIX > 0:
+        incar["MAXMIX"] = MAXMIX
+        
+    incar["EDIFF"] = "1e"+EDIFF
+    incar["ML_WTIFOR"] = ML_WTIFOR
+
     
     
     unit_struc = structure
@@ -175,12 +221,33 @@ if __name__ == '__main__':
     vasp_input = MPScanRelaxSet(structure)
     vasp_input.write_input(".")
     
-    accuracy = 12.0
-    incar["NGX"] = math.ceil(structure.lattice.abc[0] * accuracy)
-    incar["NGY"] = math.ceil(structure.lattice.abc[1] * accuracy)
-    incar["NGZ"] = math.ceil(structure.lattice.abc[2] * accuracy)
+    with open("INCAR",'r') as f:
+        lines = f.readlines()
+        for i in range(0,len(lines)):
+            if "MAGMOM" in lines[i]:
+                magmoms = lines[i]
+    
+    if ACC == True:
+        accuracy = 12.0
+        incar["NGX"] = math.ceil(structure.lattice.abc[0] * accuracy)
+        incar["NGY"] = math.ceil(structure.lattice.abc[1] * accuracy)
+        incar["NGZ"] = math.ceil(structure.lattice.abc[2] * accuracy)
+    else:
+        incar.pop("NGX")
+        incar.pop("NGY")
+        incar.pop("NGZ")
     
     incar.write_file("INCAR")
+    with open("INCAR",'r') as f:
+        lines = f.readlines()
+        for i in range(0,len(lines)):
+            if "MAGMOM" in lines[i]:
+                lines[i] = magmoms
+                break
+    with open("INCAR",'w') as f:
+        for i in range(0,len(lines)):
+            f.write(lines[i])
+    incar = Incar.from_file("INCAR")
     structure.to("POSCAR",fmt="vasp")
     
     
@@ -254,7 +321,7 @@ if __name__ == '__main__':
             os.chdir("MD")
             incar.write_file("run")
             # run VASP calculation
-            print(subprocess.run(["/home/70/bt308570/bin/vsub_py "+name+"_"+str(i)+"_MD.inp"], shell=True, stdout=subprocess.PIPE))
+            print(subprocess.run(["/home/70/bt308570/bin/vsub "+name+"_"+str(i)+"_MD.inp"], shell=True, stdout=subprocess.PIPE))
             os.chdir("..")
         if os.path.isfile(os.getcwd()+"/REFIT/run") or os.path.isfile(os.getcwd()+"/REFIT/done"):
             print("REFIT running or done.")
@@ -269,7 +336,7 @@ if __name__ == '__main__':
                 os.chdir("REFIT")
                 incar.write_file("run")
                 # run VASP calculation
-                print(subprocess.run(["/home/70/bt308570/bin/vsub_py "+name+"_"+str(i)+"_REFIT.inp"], shell=True, stdout=subprocess.PIPE))
+                print(subprocess.run(["/home/70/bt308570/bin/vsub "+name+"_"+str(i)+"_REFIT.inp"], shell=True, stdout=subprocess.PIPE))
                 os.chdir("..")
         if os.path.isfile(os.getcwd()+"/REFIT/done") and os.path.isfile(os.getcwd()+"/REFIT/ML_FFN"):
             shutil.copyfile(os.getcwd()+"/REFIT/ML_FFN",os.getcwd()+"/VIB/ML_FF")
@@ -399,6 +466,8 @@ if __name__ == '__main__':
                 
                 res_dir = (topdir+"/RESULTS/"+name+"_ML_"+str(i)+alt_settings)
                 directory_tools.make_directory(res_dir)      
+                
+                shutil.copy(topdir+"/RESULTS/"+name+"/energy.txt",res_dir+"/energy.txt")
                 
                 # writing information
                 with open(res_dir+'/thermo.txt', 'w') as file:

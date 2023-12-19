@@ -21,15 +21,21 @@ def energy(outcar):
 
     
     with open(outcar, 'r') as file:
+        i = 0
         for line in file:
             if "free  e" in line:
+                if i == 0:
+                    first_match = line
+                    i = 1
                 last_match = line
             if "Total CPU" in line:
                 timing = float(line.split(":")[1])
-        
+    
+    first_match = first_match.split("=")[1]
+    first_match = first_match.split("eV")[0]
     last_match = last_match.split("=")[1]
     last_match = last_match.split("eV")[0]
-    return float(last_match),timing
+    return float(last_match),timing,float(first_match)
 
 
 # beginning of main program
@@ -90,12 +96,13 @@ structures = {}
 
 
 #specify the different calculation types
-e_types = ["Q","fullAI","SP","fastAI","fastSP","SZP_SP","SZP_OPT","DZP_SP","DZP_OPT","ML"]#,"slowAI","slowSP"] # coulomb, sp, ML, partopt
+e_types = ["Q","fullAI","SP","fastAI","fastSP","SZP_SP","SZP_OPT","DZP_SP","DZP_OPT","ML_SP","ML_OPT"]#,"slowAI","slowSP"] # coulomb, sp, ML, partopt
 e_min = [1] * len(e_types)
-reference = "slowAI"
+reference = "fullAI"
 
 timings = {}
 e_all = {}
+multiplicities = {}
 run_success = {}
 for config in configs:
     e_all[config] = [1] * len(e_types)
@@ -109,6 +116,7 @@ with open("supercell_coulomb_energy_l.txt","r") as file:
         temp = line.split("\t")[1]
         index = e_types.index("Q")
         e_all[key][index] = float(temp.split(" ")[0])
+        multiplicities[key] = key.split("_w")[1]
         e_min[index] = min(e_all[key][index],e_min[index])
 
 
@@ -118,12 +126,16 @@ composition = Composition(structure.composition)
 Z = composition.get_reduced_composition_and_factor()[1]
 atoms = structure.num_sites
 
+ii = 0
 for calculation in calculations:
+    ii += 1
+    print(ii/len(calculations)*100.0,"%")
     config = calculation.split("_gpaw")[0]
     config = config.split("_fast")[0]
     config = config.split("_slow")[0]
+    config = config.split("_ml")[0]
     os.chdir(calculation)
-    if os.path.isfile("done") and os.path.isfile("OUTCAR"):
+    if os.path.isfile("done") and os.path.isfile("OUTCAR") and not os.path.isfile("ML_FF"):
         
         # get full ab-initio results
         if "fast" in calculation:
@@ -133,7 +145,7 @@ for calculation in calculations:
         else:
             index = e_types.index("fullAI")
         
-        final_energy,timing = energy("OUTCAR")
+        final_energy,timing,tmp = energy("OUTCAR")
         if final_energy > 10000:
             print(calculation)
         run_success[config][index] = 0
@@ -150,9 +162,10 @@ for calculation in calculations:
             index = e_types.index("slowSP")
         else:
             index = e_types.index("SP")
-        e_all[config][index] = energy("SCFCONV/OUTCAR")[0]/Z
-        run_success[config][index] = 0
-        timings[config][index] = energy("SCFCONV/OUTCAR")[1]
+        if not os.path.isfile("ML_FF"):
+            e_all[config][index] = energy("SCFCONV/OUTCAR")[0]/Z
+            run_success[config][index] = 0
+            timings[config][index] = energy("SCFCONV/OUTCAR")[1]
         e_min[index] = min(e_all[config][index],e_min[index])
         
         
@@ -174,10 +187,15 @@ for calculation in calculations:
             e_min[index] = min(e_all[config][index],e_min[index])
         
         # read in ML if it exists
-        if os.path.isdir("ML") and "ML" in e_types:
-            index = e_types.index("ML")
-            e_all[config][index] = energy("ML/OUTCAR")[0]/Z
+    if "ML_OPT" in e_types and os.path.isfile("ML_FF"):
+        index = e_types.index("ML_OPT")
+        e_all[config][index] = energy("OUTCAR")[0]/Z
         e_min[index] = min(e_all[config][index],e_min[index])
+        if "ML_SP" in e_types:
+            index = e_types.index("ML_SP")
+            e_all[config][index] = energy("OUTCAR")[2]/Z
+            e_min[index] = min(e_all[config][index],e_min[index])
+
         
     elif os.path.isfile("SCFCONV/OUTCAR"):
         if "fast" in calculation:
@@ -383,6 +401,7 @@ print("################################")
 with open("results.dat", 'w') as file:
     for i in range(len(e_types)):
         file.write("{:10}".format(e_types[i]))
+    file.write("ID")
     file.write("\n")
     for config in configs:
         for i in range(len(e_types)):
@@ -402,6 +421,16 @@ with open("results.dat", 'w') as file:
         file.write("{:10.3f}".format(e_min[i]))
     file.write("\n")
     
+for i in range(len(e_types)):
+    with open(e_types[i]+".dat", 'w') as file:
+        file.write("      ID        E  Multi\n")
+        for config in configs:
+            file.write("{:>8} ".format(config.split("_")[1]))
+            file.write("{:8.3f} ".format(e_all[config][i]))
+            file.write("{:>6}".format(multiplicities[config]))
+            file.write("\n")
+
+    
 # sorted energy analysis
 
 e_sorted = {}
@@ -413,7 +442,7 @@ for i in range(len(e_types)):
         tmp.append([k,e_all[config][i]])
     e_sorted[i] = sorted(tmp, key=operator.itemgetter(1))
 
-ratios = [0.01,0.05,0.1,0.25] #[0.01,0.05,0.10,0.20,0.25,0.5,1.0]
+ratios = [] #0.01,0.05,0.1,0.25] #[0.01,0.05,0.10,0.20,0.25,0.5,1.0]
 
 for ratio in ratios:
     scope = math.ceil(ratio*len(e_all))
@@ -439,44 +468,8 @@ for ratio in ratios:
             
     
 
+for i in range(len(e_types)):
+    if e_min[i] < 0:
+        print("Type: {:s}, min. E: {:7.3f}".format(e_types[i],e_min[i]))
+
 sys.exit()
-
-print("r² cou=","{:6.3f}".format(r**2),"Data points:",len(configs))
-print("r² uopt=","{:6.3f}".format(r_opt**2),"Data points:",len(configs))
-if r_ml < 50:
-    print("r² ML=","{:6.3f}".format(r_ml**2),"Data points:",len(configs))
-
-min_energy = 0.0
-for key,value in config_energy.items():
-    if value < min_energy:
-        min_energy = value
-        
-form = "{:7.3f}"
-
-
-if e_ref < -1:  
-    print("{:24}".format("Configuration"),"{:^15}".format("E-E_min"),"{:^15}".format("E-E_ref"),"{:^7}".format("E"),"{:^7}".format("Del_opt"))
-    print("{:24}".format(""),"   cell","   atom", "   cell", "   atom", "   cell")
-    for key,value in config_energy.items():
-        if value-e_ref > e_cut:
-            continue
-        delta_e_min_u = form.format(value-min_energy)
-        delta_e_min_a = form.format((value-min_energy)*Z/atoms)
-        delta_e_ref_u = form.format(value-e_ref)
-        delta_e_ref_a = form.format((value-e_ref)*Z/atoms)
-        delta_e_opt_u = value-config_sp_energy[key]
-        print("{:24}".format(key),delta_e_min_u,delta_e_min_a,delta_e_ref_u,delta_e_ref_a,form.format(value),form.format(delta_e_opt_u),"{:10.2f}".format(timings[key]))
-        res_struc[key].to(key+".vasp",fmt="POSCAR")
-else:
-    print("{:24}".format("Configuration"),"{:^15}".format("E-E_min"),"{:^7}".format("E_tot"),"{:^10}".format("CPU time"))
-    print("{:24}".format(""),"   cell","   atom")
-    for key,value in config_energy.items():
-        delta_e_min_u = form.format(value-min_energy)
-        delta_e_min_a = form.format((value-min_energy)*Z/atoms)
-        delta_e_ref_u = form.format(value-e_ref)
-        delta_e_ref_a = form.format((value-e_ref)*Z/atoms)
-        print("{:24}".format(key),delta_e_min_u,delta_e_min_a,"{:6.3f}".format(value),"{:10.2f}".format(timings[key]))
-            
-
-# print(min(y))
-# print(statistics.mean(y)-min(y))

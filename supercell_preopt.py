@@ -35,7 +35,7 @@ if __name__ == '__main__':
     
     file_dir = os.getcwd()
     
-    
+    selec = "100"
     super = 0
     mode = "vasp"
     n = len(sys.argv)
@@ -61,6 +61,10 @@ if __name__ == '__main__':
             id_tag = sys.argv[i+1]
         elif sys.argv[i] == "-m" or sys.argv[i] == "--mode":
             mode = sys.argv[i+1]
+        elif sys.argv[i] == "-q" or sys.argv[i] == "--coulomb":
+            selec = sys.argv[i+1]
+        elif sys.argv[i] == "-p" or sys.argv[i] == "--potential":
+            mlp_file = sys.argv[i+1]
         
     
     warnings.filterwarnings("ignore", message="No POTCAR file with matching TITEL") # suppress the POTCAR warning, works regardless
@@ -99,10 +103,11 @@ if __name__ == '__main__':
         workdir = os.getcwd()
         
         shutil.copyfile(os.path.join(file_dir,cif_file),cif_file)
+        shutil.copyfile(os.path.join(file_dir,mlp_file),mlp_file)
         
         # run supercell to generate all relevant structures
         if not os.path.isfile("done"):
-            process = subprocess.Popen(['supercell',"-i",cif_file,"-s",sc_str,"-n","l100","-q","-m"],
+            process = subprocess.Popen(['supercell',"-i",cif_file,"-s",sc_str,"-n","l"+selec,"-q","-m"],
                          stdin=subprocess.DEVNULL,
                          start_new_session=False)
             process.wait()
@@ -125,9 +130,13 @@ if __name__ == '__main__':
                   base_name = base_name + "_fast"
             elif mode == "slow":
                   base_name = base_name + "_slow"
+            elif mode == "ml":
+                  base_name = base_name + "_ml"
                    
             directory_tools.make_directory(base_name)
             shutil.copyfile(i,os.path.join(base_name,i))
+            if mode == "ml":
+                shutil.copyfile(mlp_file,os.path.join(base_name,mlp_file))
             os.chdir(base_name)
             
             if not os.path.isfile("INCAR"):
@@ -150,6 +159,19 @@ if __name__ == '__main__':
                                  start_new_session=True,
                                  preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
                     process.wait()
+                elif mode == "ml":
+                    process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",i,"-n",name_prefix+"_"+base_name,"--ionly","--ml"],
+                                 stdin=subprocess.DEVNULL,
+                                 stdout=open(name_prefix+"_"+base_name+'.out', 'w'),
+                                 stderr=subprocess.STDOUT,
+                                 start_new_session=True,
+                                 preexec_fn=(lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN)))
+                    process.wait()
+                    shutil.copyfile("INCAR","INCAR_x")
+                    with open("INCAR_x", "rt") as fin:
+                        with open("INCAR", "wt") as fout:
+                            for line in fin:
+                                fout.write(line.replace('Run', 'run'))
                 else:
                     
                     process = subprocess.Popen(["python",find_topdir()+"/bin/optimizer.py","-c",i,"-n",name_prefix+"_"+base_name,"-p","--ionly"],

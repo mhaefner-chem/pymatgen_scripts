@@ -38,7 +38,13 @@ def incar_settings(arg):
         settings["VDW_S6"] = 1.000
         settings["VDW_S8"] = 0.6018749
         settings["VDW_A1"] = 0.51559235
-        settings["VDW_A2"] = 5.77342911
+        settings["VDW_A3"] = 5.77342911
+    elif func == "R2SCAN" and disp == "rVV10":
+        settings["IVDW"] = 0
+        settings["LUSE_VDW"] = ".TRUE."
+        settings["BPARAM"] = 11.95
+        settings["CPARAM"] = 0.0093
+        settings["LASPH"] = ".TRUE."
     elif disp == "D4":
         settings["IVDW"] = 13
     elif disp == "D3BJ":

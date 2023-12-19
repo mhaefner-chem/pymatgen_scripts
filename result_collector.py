@@ -38,10 +38,12 @@ results_preliminary = [f for f in os.listdir(res_dir) if os.path.isdir(os.path.j
 
 results = []
 for result in results_preliminary:
-    if "ML" in result:
-        continue
-    else:
+    # if "ML" in result:
+    #     results.append(result)
+    if "Z" in result:
         results.append(result)
+    else:
+        continue
 os.chdir(res_dir)
 
 
@@ -67,8 +69,14 @@ for result in results:
                     result_e[result] = e_unit
     
         # read the structure file and extract information about structure
-        if os.path.isfile(workdir+"/OPT/"+result+"/CONTCAR"):
-            structure = Structure.from_file(workdir+"/OPT/"+result+"/CONTCAR")
+        if "ML" in result:
+            result_base = result.split("_ML")[0]
+        else:
+            result_base = result
+            
+        
+        if os.path.isfile(workdir+"/OPT/"+result_base+"/CONTCAR"):
+            structure = Structure.from_file(workdir+"/OPT/"+result_base+"/CONTCAR")
             atoms = structure.num_sites
             composition = Composition(structure.composition)
             result_comp[result] = composition

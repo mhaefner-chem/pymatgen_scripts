@@ -36,6 +36,13 @@ while True:
         sys.exit()
 os.chdir(preopt_dir)
 
+N_stab = 10
+n = len(sys.argv)
+for i in range(0,n):
+    # specify the cells and supercell size from cif
+    if sys.argv[i] == "-n":
+        N_stab = int(sys.argv[i+1])
+
 spec = importlib.util.spec_from_file_location("directory_tools",workdir + "/bin/directory_tools.py")
 directory_tools = importlib.util.module_from_spec(spec)
 sys.modules["name"] = directory_tools
@@ -49,6 +56,8 @@ for item in data:
             if "Q" in line:
                 e_types = line.split()
                 break
+
+e_types.remove("ID")
 
 
 norm = []
@@ -64,7 +73,7 @@ for item in data:
 
     with open(item,"r") as file:
         for line in file:
-            if "Q" in line:
+            if "Q" in line or "e_min" in line:
                 continue
             elif "timing_average" in line:
                 for i in range(1,len(e_types)+1):
@@ -75,7 +84,8 @@ for item in data:
             else:
                 e = line.split()
                 for i in range(len(e)):
-                    e[i] = float(e[i])
+                    if not "il" in e[i]:
+                        e[i] = float(e[i])
                 e_dat.append(e)
         timing_sets.append([timings,successes])
         
@@ -137,8 +147,8 @@ linewidth = 0.25
 r2_all = [-1] * len(e_types)
 
 # plot_list = ["Q","fullAI","SP","fastAI","fastSP","SZP_SP","SZP_OPT","DZP_SP","DZP_OPT"]
-plot_list = ["Q","SP","fastSP","SZP_SP","DZP_SP","fullAI"] #,"fastAI","SZP_OPT","DZP_OPT","fullAI"] #,"fastSP","SZP_SP","DZP_SP","fullAI"]
-
+# plot_list = ["Q","SP","fastSP","SZP_SP","DZP_SP","fullAI"] #,"fastAI","SZP_OPT","DZP_OPT","fullAI"] #,"fastSP","SZP_SP","DZP_SP","fullAI"]
+plot_list = ["Q","SP","SZP_SP","DZP_SP","fullAI"]
 
 e_label = [""] * len(e_types)
 
@@ -286,23 +296,30 @@ with open("overlaps.dat", 'w') as file:
 
 # overlap for the N lowest structures
         
-N = 25
 overlap_array = {}
-ratios = np.linspace(0.02,0.3,num=math.ceil(len(full)*0.23))
+ratios = np.linspace(0.02,1.0,num=math.ceil(len(full)*0.98))
 
-for i in range(len(full)):
-    print(i+1,full[i][index])
-for i in range(N):
-    print(e_sorted[index][i])
-print("Q")
-for i in range(N):
-    print(e_sorted[e_types.index("Q")][i])
-print("SZP_SP")
-for i in range(N):
-    print(e_sorted[e_types.index("SZP_SP")][i])
-print("SZP_OPT")
-for i in range(N):
-    print(e_sorted[e_types.index("SZP_OPT")][i])
+# for i in range(len(full)):
+    # print(i+1,full[i][index])
+for j in range(len(e_types)):
+    # print(e_types[j])
+    # for i in range(N):
+    #     print(e_sorted[j][i])
+    # print("       most stable state: {:5d}".format(e_sorted[j][0][0]))
+    # print("{:3d} th most stable state: {:5d}".format(N_stab,e_sorted[j][N_stab][0]))
+    if e_sorted[j][1][1] < 2000:
+        print("Delta E lowest state from rest for {0:8s}: {1:6.3f}".format(e_types[j],e_sorted[j][1][1]))
+        print("Delta E lowest/Nth lowest for {0:13s}: {1:6.3f}".format(e_types[j],e_sorted[j][N_stab][1]))
+    
+print("%%%%%%%%%%%%%%%%%%%%%%")
+print("Delta E of reference method:")
+for i in range(len(norm)-1):
+    print("{} {:6.3f}".format(i,e_sorted[index][i][1]))
+print("%%%%%%%%%%%%%%%%%%%%%%")
+
+# print("SZP_OPT")
+# for i in range(N):
+#     print(e_sorted[e_types.index("SZP_OPT")][i])
 
 #for i in range(N):
 #    print(full[e_sorted[index][i][0]][index])
@@ -312,7 +329,7 @@ for ratio in ratios:
     e_truncated = {}
     overlap = [0] * len(e_types)
     
-    for i in range(N):
+    for i in range(N_stab):
         ref.append(e_sorted[index][i][0])
     
     for i in range(len(e_types)):
@@ -327,19 +344,20 @@ for ratio in ratios:
         for j in range(scope):
             if e_truncated[i][j] in ref:
                 overlap[i] += 1
-        tmp.append(overlap[i]/N)
+        tmp.append(overlap[i]/N_stab)
     overlap_array[ratio] = tmp
         
 with open("lowest_overlaps.dat", 'w') as file:
+    file.write("{:>8s}".format("step"))
     for i in range(len(e_types)):
-        file.write(e_types[i]+" ")
+        file.write("{:>8s}".format(e_types[i]))
     file.write("\n")
 
     for ratio in ratios:
         scope = math.ceil(ratio*len(full))
-        file.write("{:4}".format(scope))
+        file.write("{:8}".format(scope))
         for i in range(len(e_types)):
-            file.write("{:7.4f}".format(overlap_array[ratio][i]))
+            file.write("{:8.4f}".format(overlap_array[ratio][i]))
         file.write("\n")
 
 

@@ -40,12 +40,19 @@ def input_maker(param = 0,max_steps = 99):
         vasp_input = MPRelaxSet(struc,user_potcar_functional="PBE_54")
         vasp_input.user_incar_settings = settings.incar_settings("Fastopt")
         vasp_input.user_incar_settings["NSW"] = max_steps * 2
+    elif param == 3:
+        vasp_input = MPRelaxSet(struc,user_potcar_functional="PBE_54")
+        vasp_input.user_incar_settings = settings.incar_settings("PSopt")
+        vasp_input.user_incar_settings["NSW"] = max_steps * 5
+        vasp_input.user_incar_settings["ML_LMLFF"] = "T"
+        vasp_input.user_incar_settings["ML_MODE"] = "run"
     if param < 1:
         accuracy = 12.0
         vasp_input.user_incar_settings["NGX"] = math.ceil(struc.lattice.abc[0] * accuracy)
         vasp_input.user_incar_settings["NGY"] = math.ceil(struc.lattice.abc[1] * accuracy)
         vasp_input.user_incar_settings["NGZ"] = math.ceil(struc.lattice.abc[2] * accuracy)
-        
+    
+    
     vasp_input.write_input(".")
     incar = Incar.from_file("INCAR")
     if "GGA" in incar and "METAGGA" in incar:
@@ -76,7 +83,7 @@ def vsub(name,dir):
         i = 0
         while i == 0:
             shutil.copyfile("INCAR","run")  
-            print(subprocess.run(["/home/70/bt308570/bin/vsub_py "+name+".inp"], shell=True, stdout=subprocess.PIPE)) 
+            print(subprocess.run(["/home/70/bt308570/bin/vsub "+name+".inp 1"], shell=True, stdout=subprocess.PIPE)) 
             
             j = 1
             if os.path.isfile("OUTCAR"):
@@ -190,6 +197,8 @@ if __name__ == '__main__':
         elif sys.argv[i] == "--dzp":
             gpaw = True
             basis = "dzp"
+        elif sys.argv[i] == "--ml":
+            ml = True
         elif sys.argv[i] == "-n" or sys.argv[i] == "--name":
             name = sys.argv[i+1]
         elif sys.argv[i] == "-h" or sys.argv[i] == "--help":
@@ -216,6 +225,8 @@ spec.loader.exec_module(settings)
 if "incar" in globals():
     input_maker(preopt)
     incar.write_file('INCAR')
+elif ml == True:
+    input_maker(3)
 else:
     input_maker(preopt)
 
@@ -289,28 +300,40 @@ if gpaw == False:
         print("The initial SCF convergence failed! Please check the validity of the input files and provide an alternative INCAR if necessary.")
         sys.exit()
         
-# runs vsub_py for optimization  
+# runs vsub for optimization with VASP
 os.chdir(workdir)
 if gpaw == False:
     input_maker(preopt,int(max_steps))
 
-a = 0
 if gpaw == False:
     while True:
+        max_opt = 10
+        for i in range(1,max_opt*2):
+            if os.path.isfile("POSCAR_"+str(i)):
+                opt = i
+            else:
+                break
+        print("Current:",opt+1)
+        
         energy = vsub(name,workdir)
         result = Vasprun("vasprun.xml")
-        a = a + 1
+        
+        # breaks if optimization fails for too long
+        if result.converged_ionic == False and opt+1 > max_opt:
+            print("Optimization failed even after 10 restarts. Please check system manually.")
+            sys.exit()        
         # repeats optimization if not yet converged
         if result.converged_ionic == False:
-            print("Optimization not converged on step",a,". Updating POSCAR to do another optimization.")
-            os.remove("done")
-            shutil.copyfile("POSCAR","POSCAR_"+str(a))
+            print("Optimization not converged on step",opt+1,". Updating POSCAR to do another optimization.")
+            if os.path.isfile("done"):
+                os.remove("done")
+            shutil.copyfile("POSCAR","POSCAR_"+str(opt+1))
             shutil.copyfile("CONTCAR","POSCAR")
+            energy = vsub(name,workdir)
+            result = Vasprun("vasprun.xml")
+            sys.exit()
         elif result.converged_ionic == True:
             break
-        elif result.converged_ionic == False and a > 10:
-            print("Optimization failed even after 10 restarts. Please check system manually.")
-            sys.exit()
 else:
     with open(find_topdir()+"/bin/gpaw_opt.py","rt") as fin:
         with open("gpaw_opt.py", "wt") as fout:
